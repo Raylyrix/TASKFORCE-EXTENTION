@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Advanced Email Manager - Settings</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .tab {
+      display: inline-block;
+      padding: 10px 20px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .tab.active {
+      border-bottom-color: #4285f4;
+      color: #4285f4;
+    }
+    .tab-content {
+      display: none;
+      margin-top: 20px;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    button {
+      padding: 10px 20px;
+      background: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #357ae8;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    textarea {
+      min-height: 100px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Advanced Email Manager - Settings</h1>
+  
+  <div class="tabs">
+    <div class="tab active" data-tab="templates">Templates</div>
+    <div class="tab" data-tab="bulk">Bulk Send</div>
+    <div class="tab" data-tab="csv">CSV Import</div>
+    <div class="tab" data-tab="tracking">Email Tracking</div>
+    <div class="tab" data-tab="quickreplies">Quick Replies</div>
+    <div class="tab" data-tab="followup">Auto Follow-up</div>
+    <div class="tab" data-tab="scheduled">Scheduled Emails</div>
+    <div class="tab" data-tab="filters">Filters</div>
+    <div class="tab" data-tab="settings">Settings</div>
+  </div>
+  
+  <!-- Templates Tab -->
+  <div class="tab-content active" id="templates">
+    <h2>Email Templates</h2>
+    <div>
+      <label>Template Name:</label>
+      <input type="text" id="template-name">
+      
+      <label>Subject:</label>
+      <input type="text" id="template-subject">
+      
+      <label>Body:</label>
+      <textarea id="template-body"></textarea>
+      
+      <button onclick="saveTemplate()">Save Template</button>
+    </div>
+    
+    <h3>Saved Templates</h3>
+    <div id="templates-list"></div>
+  </div>
+  
+  <!-- Bulk Send Tab -->
+  <div class="tab-content" id="bulk">
+    <h2>Bulk Send</h2>
+    <div>
+      <label>Select Template:</label>
+      <select id="bulk-template"></select>
+      
+      <label>Recipients (one per line or comma-separated):</label>
+      <textarea id="bulk-recipients"></textarea>
+      
+      <button onclick="sendBulk()">Send Bulk</button>
+    </div>
+  </div>
+  
+  <!-- Follow-up Tab -->
+  <div class="tab-content" id="followup">
+    <h2>Auto Follow-up Rules</h2>
+    <div>
+      <label>Rule Name:</label>
+      <input type="text" id="followup-name">
+      
+      <label>Template:</label>
+      <select id="followup-template"></select>
+      
+      <label>Send after (days without response):</label>
+      <input type="number" id="followup-days" value="3">
+      
+      <button onclick="saveFollowUp()">Save Rule</button>
+    </div>
+    
+    <h3>Active Rules</h3>
+    <div id="followup-list"></div>
+  </div>
+  
+  <!-- CSV Import Tab -->
+  <div class="tab-content" id="csv">
+    <h2>CSV Import for Bulk Send</h2>
+    <div>
+      <label>Upload CSV File:</label>
+      <input type="file" id="csv-file" accept=".csv">
+      
+      <label>CSV Format:</label>
+      <div style="background: #f5f5f5; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+        email,name,company,position<br>
+        john@example.com,John Doe,Acme Corp,Manager<br>
+        jane@example.com,Jane Smith,XYZ Inc,Director
+      </div>
+      
+      <label>Select Template:</label>
+      <select id="csv-template"></select>
+      
+      <button onclick="previewCSV()">Preview Import</button>
+      
+      <div id="csv-preview" style="margin-top: 20px;"></div>
+    </div>
+  </div>
+  
+  <!-- Tracking Tab -->
+  <div class="tab-content" id="tracking">
+    <h2>Email Tracking</h2>
+    
+    <h3>Tracked Emails</h3>
+    <div id="tracked-emails-list"></div>
+    
+    <h3>Analytics</h3>
+    <div id="tracking-stats" style="background: #f5f5f5; padding: 15px; border-radius: 4px;">
+      <p><strong>Total Emails Sent:</strong> <span id="total-sent">0</span></p>
+      <p><strong>Total Opens:</strong> <span id="total-opens">0</span></p>
+      <p><strong>Total Clicks:</strong> <span id="total-clicks">0</span></p>
+      <p><strong>Open Rate:</strong> <span id="open-rate">0%</span></p>
+      <p><strong>Click Rate:</strong> <span id="click-rate">0%</span></p>
+    </div>
+  </div>
+  
+  <!-- Quick Replies Tab -->
+  <div class="tab-content" id="quickreplies">
+    <h2>Quick Replies</h2>
+    <div>
+      <label>Shortcut (e.g., "thanks"):</label>
+      <input type="text" id="reply-shortcut" placeholder="thanks">
+      
+      <label>Category:</label>
+      <select id="reply-category">
+        <option value="greeting">Greeting</option>
+        <option value="thanks">Thanks</option>
+        <option value="meeting">Meeting</option>
+        <option value="followup">Follow-up</option>
+        <option value="other">Other</option>
+      </select>
+      
+      <label>Response Text:</label>
+      <textarea id="reply-text"></textarea>
+      
+      <button onclick="saveQuickReply()">Save Quick Reply</button>
+    </div>
+    
+    <h3>Saved Quick Replies</h3>
+    <div id="quickreplies-list"></div>
+  </div>
+  
+  <!-- Scheduled Emails Tab -->
+  <div class="tab-content" id="scheduled">
+    <h2>Scheduled Emails Queue</h2>
+    <div id="scheduled-queue"></div>
+  </div>
+  
+  <!-- Filters Tab -->
+  <div class="tab-content" id="filters">
+    <h2>Email Filters</h2>
+    <p>Coming soon...</p>
+  </div>
+  
+  <!-- Settings Tab -->
+  <div class="tab-content" id="settings">
+    <h2>Settings</h2>
+    <div>
+      <label>
+        <input type="checkbox" id="enable-followup">
+        Enable Auto Follow-up
+      </label>
+      
+      <label>Delay between bulk emails (ms):</label>
+      <input type="number" id="bulk-delay" value="1000">
+      
+      <label>Max emails per day:</label>
+      <input type="number" id="max-daily" value="500">
+      
+      <label>
+        <input type="checkbox" id="enable-tracking">
+        Enable Email Tracking (opens and clicks)
+      </label>
+      
+      <label>
+        <input type="checkbox" id="enable-dark-mode">
+        Enable Dark Mode
+      </label>
+      
+      <button onclick="saveSettings()">Save Settings</button>
+    </div>
+  </div>
+  
+  <script src="options.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 420px;
+      padding: 0;
+      margin: 0;
+      font-family: 'Google Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    .header {
+      padding: 24px 20px;
+      background: white;
+      border-bottom: 1px solid #e8eaed;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    h2 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .content {
+      padding: 20px;
+      background: white;
+      min-height: calc(100vh - 80px);
+    }
+    
+    .section {
+      margin-bottom: 16px;
+      padding: 20px;
+      background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border: 1px solid #e8eaed;
+      transition: all 0.3s ease;
+    }
+    
+    .section:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      transform: translateY(-2px);
+    }
+    
+    .stat {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #e8eaed;
+    }
+    
+    .stat:last-child {
+      border-bottom: none;
+    }
+    
+    .stat-label {
+      color: #5f6368;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .stat-value {
+      font-weight: 700;
+      font-size: 18px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    button::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+    
+    button:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    .settings-btn {
+      background: #666;
+      margin-top: 10px;
+    }
+    .settings-btn:hover {
+      background: #555;
+    }
+    .status {
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+    .status.connected {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.disconnected {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .tab-btn {
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: white !important;
+      color: #1a73e8 !important;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .reply-item {
+      padding: 10px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      background: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .reply-item.has-reply {
+      border-left: 3px solid #34a853;
+    }
+    .reply-item.no-reply {
+      border-left: 3px solid #ea4335;
+    }
+    .followup-rule {
+      padding: 12px;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      background: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>🚀 TaskForce Email Manager</h2>
+  </div>
+  
+  <div id="status" class="status disconnected" style="margin: 20px; border-radius: 10px; padding: 12px;">
+    Not Connected
+  </div>
+  
+  <div id="reauthenticate-btn-container" style="margin: 0 20px 20px 20px; display: none;">
+    <button id="reauthenticate-btn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #ea4335, #c5221f); border: none; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600; color: white; box-shadow: 0 4px 12px rgba(234, 67, 53, 0.4);">
+      🔄 Reauthenticate
+    </button>
+  </div>
+  
+  <div class="content">
+    <div style="margin-bottom: 20px; display: flex; gap: 6px; background: linear-gradient(135deg, #f8f9fa 0%, #e8eaed 100%); padding: 6px; border-radius: 12px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
+      <button class="tab-btn active" data-tab="progress" style="flex: 1; padding: 12px 16px; border: none; background: linear-gradient(135deg, white, #f8f9fa); border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #667eea; box-shadow: 0 2px 6px rgba(0,0,0,0.1); transition: all 0.3s ease;">📊 Progress</button>
+      <button class="tab-btn" data-tab="replies" style="flex: 1; padding: 12px 16px; border: none; background: transparent; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; color: #5f6368; transition: all 0.3s ease;">💬 Replies</button>
+      <button class="tab-btn" data-tab="followups" style="flex: 1; padding: 12px 16px; border: none; background: transparent; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; color: #5f6368; transition: all 0.3s ease;">🔄 Follow-ups</button>
+    </div>
+  
+  <!-- Progress Tab -->
+  <div class="tab-content active" id="tab-progress">
+    <div class="section" id="bulk-progress-section">
+      <h3 style="margin-top: 0;">📊 Bulk Email Progress</h3>
+      <div id="bulk-progress-content">
+        <div style="text-align: center; color: #666; padding: 20px;">
+          No active campaigns
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h3 style="margin-top: 0;">📈 Quick Stats</h3>
+      <div class="stat">
+        <span class="stat-label">Total sent today:</span>
+        <span class="stat-value" id="sent-today">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Pending scheduled:</span>
+        <span class="stat-value" id="pending-scheduled">0</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Replies Tab -->
+  <div class="tab-content" id="tab-replies">
+    <div class="section">
+      <h3 style="margin-top: 0;">💬 Email Replies</h3>
+      <div id="replies-content">
+        <div style="text-align: center; color: #666; padding: 20px;">
+          Loading replies...
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Follow-ups Tab -->
+  <div class="tab-content" id="tab-followups">
+    <div class="section">
+      <h3 style="margin-top: 0;">🔄 Follow-up Rules</h3>
+      <button id="add-followup-btn" style="width: 100%; margin-bottom: 12px; background: #34a853;">+ Add Follow-up Rule</button>
+      <div id="followup-rules-content">
+        <div style="text-align: center; color: #666; padding: 20px;">
+          No follow-up rules configured
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h3 style="margin-top: 0;">⚙️ Settings</h3>
+    <button id="settings-btn" style="background: #666;">Open Settings</button>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
+

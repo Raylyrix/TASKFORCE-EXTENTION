@@ -1,0 +1,21 @@
+{
+  "name": "advanced-email-manager",
+  "version": "1.0.0",
+  "description": "Advanced email scheduling, auto-follow-up, bulk sending, and smart filters for Gmail",
+  "main": "background.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "chrome-extension",
+    "gmail",
+    "email",
+    "scheduler",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+
+
+

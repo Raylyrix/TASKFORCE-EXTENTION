@@ -1,0 +1,523 @@
+/* TaskForce Email Manager - Award-Winning UI Styles */
+
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --primary: #1a73e8;
+  --primary-hover: #1557b0;
+  --success: #34a853;
+  --success-light: #e8f5e9;
+  --warning: #fbbc04;
+  --danger: #ea4335;
+  --gray-50: #fafafa;
+  --gray-100: #f8f9fa;
+  --gray-200: #f1f3f4;
+  --gray-300: #e8eaed;
+  --gray-400: #dadce0;
+  --gray-500: #5f6368;
+  --gray-600: #3c4043;
+  --gray-800: #202124;
+  --shadow-sm: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+  --shadow-md: 0 1px 2px rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+  --shadow-lg: 0 2px 4px rgba(60, 64, 67, 0.3), 0 4px 12px 3px rgba(60, 64, 67, 0.15);
+}
+
+.aem-btn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Google Sans', Roboto, sans-serif;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.aem-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.aem-btn:hover::before {
+  left: 100%;
+}
+
+.aem-btn:hover {
+  background: linear-gradient(135deg, var(--primary-hover), var(--primary));
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.aem-btn:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Composer button alignment */
+.aem-schedule-btn,
+.aem-bulk-btn {
+  margin-left: 8px;
+  display: inline-block !important;
+}
+
+/* Ensure buttons align horizontally in Gmail toolbar */
+[role="group"] .aem-schedule-btn,
+[role="group"] .aem-bulk-btn {
+  display: inline-flex !important;
+  vertical-align: middle !important;
+}
+
+.aem-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000000;
+}
+
+.aem-modal-content {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.aem-modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.aem-modal-content div {
+  margin-bottom: 15px;
+}
+
+.aem-modal-content label {
+  display: block;
+  margin-bottom: 5px;
+  color: #666;
+  font-weight: 500;
+}
+
+.aem-modal-content input,
+.aem-modal-content select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.aem-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 25px;
+}
+
+.aem-modal-actions button {
+  flex: 1;
+}
+
+.aem-btn-primary {
+  background: #1a73e8;
+}
+
+.aem-btn-primary:hover {
+  background: #1557b0;
+}
+
+/* Gmail-Integrated Panel Styles */
+.aem-bulk-panel {
+  position: absolute;
+  top: 60px;
+  right: 0;
+  width: 380px;
+  max-height: 600px;
+  background: white;
+  border-left: 1px solid #dadce0;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+  z-index: 1000;
+  font-family: 'Google Sans', Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.aem-panel-header {
+  padding: 16px;
+  border-bottom: 1px solid #dadce0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8f9fa;
+}
+
+.aem-panel-header span {
+  font-size: 14px;
+  font-weight: 500;
+  color: #202124;
+}
+
+.aem-close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #5f6368;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  line-height: 1;
+}
+
+.aem-close-btn:hover {
+  color: #202124;
+}
+
+.aem-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.aem-form-group {
+  margin-bottom: 16px;
+}
+
+.aem-form-group label {
+  display: block;
+  font-size: 13px;
+  color: #5f6368;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.aem-form-group input,
+.aem-form-group textarea,
+.aem-form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border 0.2s;
+  box-sizing: border-box;
+}
+
+.aem-form-group input:focus,
+.aem-form-group textarea:focus,
+.aem-form-group select:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 1px #1a73e8;
+}
+
+.aem-form-group textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.aem-btn-sm {
+  padding: 6px 16px;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.aem-btn-sm:hover {
+  background: #1557b0;
+}
+
+.aem-schedule-box {
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.aem-schedule-box strong {
+  font-size: 13px;
+  color: #202124;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.aem-preview-box {
+  padding: 12px;
+  background: #e8f0fe;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.aem-preview-box table {
+  width: 100%;
+  font-size: 12px;
+  border-collapse: collapse;
+}
+
+.aem-preview-box th {
+  background: #f1f3f4;
+  padding: 4px 6px;
+  text-align: left;
+  border: 1px solid #dadce0;
+  font-weight: 500;
+}
+
+.aem-preview-box td {
+  padding: 4px 6px;
+  border: 1px solid #dadce0;
+}
+
+.aem-panel-actions {
+  border-top: 1px solid #dadce0;
+  padding-top: 16px;
+  margin-top: auto;
+}
+
+.aem-send-btn {
+  width: 100%;
+  padding: 10px;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.aem-send-btn:hover {
+  background: #1557b0;
+}
+
+/* Mini Integrated Panel - Inside Gmail Compose */
+.aem-bulk-mini {
+  margin: 12px 16px !important;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  background: #fff;
+  font-family: 'Google Sans', Roboto, sans-serif;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.2s;
+  /* CRITICAL: Prevent composer elongation - hard limits */
+  height: auto !important;
+  min-height: auto !important;
+  max-height: 350px !important;
+  overflow: hidden !important;
+  position: relative !important;
+  /* Prevent Gmail from resizing */
+  flex-shrink: 0;
+  flex-grow: 0;
+  /* CRITICAL: Ensure panel receives all clicks */
+  pointer-events: auto !important;
+  z-index: 1000 !important;
+}
+
+/* Ensure ALL child elements can be clicked */
+.aem-bulk-mini * {
+  pointer-events: auto !important;
+}
+
+.aem-bulk-mini::-webkit-scrollbar {
+  width: 8px;
+}
+
+.aem-bulk-mini::-webkit-scrollbar-track {
+  background: #f1f3f4;
+  border-radius: 4px;
+}
+
+.aem-bulk-mini::-webkit-scrollbar-thumb {
+  background: #dadce0;
+  border-radius: 4px;
+}
+
+.aem-bulk-mini::-webkit-scrollbar-thumb:hover {
+  background: #bdc1c6;
+}
+
+.aem-bulk-mini:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.aem-mini-header {
+  padding: 14px 16px;
+  background: linear-gradient(to right, #f8f9fa, #f1f3f4);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 8px 8px 0 0;
+  font-size: 14px;
+  color: #1a73e8;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.aem-mini-header:hover {
+  background: linear-gradient(to right, #f1f3f4, #e8eaed);
+}
+
+.aem-toggle-icon {
+  font-size: 14px;
+  color: #1a73e8;
+  transition: transform 0.2s;
+  font-weight: 600;
+}
+
+.aem-mini-content {
+  padding: 12px;
+  border-top: 1px solid #e8eaed;
+  background: #fafafa;
+  /* Prevent content from affecting composer height when hidden */
+  display: none;
+  /* Add max height for when expanded */
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.aem-sheets-input {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: stretch;
+}
+
+.aem-sheets-input input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 2px solid #dadce0;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: Roboto, sans-serif;
+  transition: all 0.2s;
+  background: white;
+}
+
+.aem-sheets-input input:hover {
+  border-color: #c4c9cc;
+}
+
+.aem-sheets-input input:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 2px 6px rgba(26, 115, 232, 0.15);
+}
+
+.aem-load-btn {
+  padding: 10px 24px;
+  background: linear-gradient(to bottom, #1a73e8, #1765cc);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(26, 115, 232, 0.3);
+  transition: all 0.2s;
+}
+
+.aem-load-btn:hover {
+  background: linear-gradient(to bottom, #1765cc, #1557b0);
+  box-shadow: 0 2px 6px rgba(26, 115, 232, 0.4);
+  transform: translateY(-1px);
+}
+
+.aem-load-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(26, 115, 232, 0.3);
+}
+
+.aem-load-btn:disabled {
+  background: #dadce0;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.aem-timing-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.aem-select, .aem-datetime {
+  flex: 1;
+  padding: 10px 12px;
+  border: 2px solid #dadce0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: Roboto, sans-serif;
+  background: white;
+  transition: all 0.2s;
+}
+
+.aem-select:hover, .aem-datetime:hover {
+  border-color: #c4c9cc;
+}
+
+.aem-select:focus, .aem-datetime:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 2px 6px rgba(26, 115, 232, 0.15);
+}
+
+.aem-send-btn-main {
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #34a853, #0f9d58);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(52, 168, 83, 0.3);
+  transition: all 0.2s;
+}
+
+.aem-send-btn-main:hover {
+  background: linear-gradient(135deg, #0f9d58, #0e8e50);
+  box-shadow: 0 4px 8px rgba(52, 168, 83, 0.4);
+  transform: translateY(-1px);
+}
+
+.aem-send-btn-main:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(52, 168, 83, 0.3);
+}
+
+.aem-send-btn-main:disabled {
+  background: #dadce0;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
