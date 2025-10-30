@@ -743,6 +743,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     return true;
   }
+
+  if (request.action === 'getBackendStatus') {
+    try {
+      chrome.storage.local.get(['backendStatus', 'backendUserId'], (result) => {
+        sendResponse({ success: true, status: result.backendStatus || 'unknown', userId: result.backendUserId || null });
+      });
+    } catch (e) {
+      sendResponse({ success: false, error: e?.message || 'Error' });
+    }
+    return true;
+  }
+
+  if (request.action === 'getBackendMetrics') {
+    (async () => {
+      try {
+        if (typeof BACKEND_URL === 'undefined') {
+          sendResponse({ success: false, error: 'Backend URL not set' });
+          return;
+        }
+        const resp = await fetch(`${BACKEND_URL}/metrics`);
+        const data = await resp.json();
+        sendResponse({ success: true, data });
+      } catch (e) {
+        sendResponse({ success: false, error: e?.message || 'Error' });
+      }
+    })();
+    return true;
+  }
 });
 
 // Schedule an email to be sent later

@@ -1,6 +1,54 @@
 // Popup script
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Backend status banner
+  try {
+    chrome.runtime.sendMessage({ action: 'getBackendStatus' }, (resp) => {
+      if (resp && resp.success) {
+        const banner = document.getElementById('backend-status') || (() => {
+          const div = document.createElement('div');
+          div.id = 'backend-status';
+          div.style.padding = '8px';
+          div.style.borderRadius = '6px';
+          div.style.marginBottom = '8px';
+          document.body.insertBefore(div, document.body.firstChild);
+          return div;
+        })();
+        const status = resp.status;
+        if (status === 'ready') {
+          banner.textContent = 'Backend: Ready — you can turn off your PC after scheduling.';
+          banner.style.background = '#e6ffed';
+          banner.style.color = '#03543f';
+        } else if (status === 'offline') {
+          banner.textContent = 'Backend: Offline — keep your PC on, or connect backend.';
+          banner.style.background = '#fff4e5';
+          banner.style.color = '#723b13';
+        } else {
+          banner.textContent = 'Backend: Checking…';
+          banner.style.background = '#edf2f7';
+          banner.style.color = '#2d3748';
+        }
+      }
+    });
+  } catch (e) {}
+
+  // Metrics panel
+  try {
+    chrome.runtime.sendMessage({ action: 'getBackendMetrics' }, (resp) => {
+      if (resp && resp.success && resp.data && resp.data.metrics) {
+        const m = resp.data.metrics;
+        const panel = document.getElementById('backend-metrics') || (() => {
+          const div = document.createElement('div');
+          div.id = 'backend-metrics';
+          div.style.marginTop = '8px';
+          div.style.fontSize = '12px';
+          document.body.appendChild(div);
+          return div;
+        })();
+        panel.textContent = `Queued: ${m.queued} | Sent: ${m.sent} | Failed: ${m.failed}`;
+      }
+    });
+  } catch (e) {}
   // Load stats
   loadStats();
   loadReplies();

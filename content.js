@@ -2564,13 +2564,19 @@ function continueBulkSendProcess(emails, startTime, delay) {
     return;
   }
   
-  // Always route via background hybrid handler for reliability
-  chrome.runtime.sendMessage({
-    action: 'handleBulkSendHybrid',
-    emails: emails,
-    startTime: startTime,
-    delay: delay
-  }, (response) => {
+  // Backend guardrail: warn if backend offline
+  chrome.runtime.sendMessage({ action: 'getBackendStatus' }, (statusResp) => {
+    if (statusResp && statusResp.success && statusResp.status !== 'ready') {
+      const proceed = confirm('Backend appears offline. Proceed in local mode? You must keep your PC on.');
+      if (!proceed) return;
+    }
+    // Always route via background hybrid handler for reliability
+    chrome.runtime.sendMessage({
+      action: 'handleBulkSendHybrid',
+      emails: emails,
+      startTime: startTime,
+      delay: delay
+    }, (response) => {
     if (chrome.runtime.lastError) {
       const error = chrome.runtime.lastError.message;
       if (error.includes('Extension context invalidated') || error.includes('message port closed')) {
@@ -2596,6 +2602,7 @@ function continueBulkSendProcess(emails, startTime, delay) {
         modal.remove();
       }
     }
+    });
   });
 }
 
