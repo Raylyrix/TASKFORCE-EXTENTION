@@ -74,6 +74,8 @@ function showExtensionActiveNotification() {
   
   // Add sidebar with tabs for Gmail
   addGmailSidebar();
+  // Ensure Bulk Send entry is present and kept present
+  startBulkSendButtonObserver();
 }
 
 // Add sidebar tabs in Gmail main view
@@ -148,6 +150,188 @@ function addGmailSidebar() {
   });
   
   console.log('TaskForce sidebar tabs added to Gmail');
+}
+
+// Ensure a persistent Bulk Send button in Gmail sidebar that opens our own composer modal
+function ensureBulkSendEntry() {
+  try {
+    const sidebar = document.querySelector('[role="navigation"]');
+    if (!sidebar) return;
+    if (sidebar.querySelector('#aem-bulk-send-entry')) return;
+
+    const entry = document.createElement('div');
+    entry.id = 'aem-bulk-send-entry';
+    entry.style.cssText = 'margin: 8px 8px 0 8px;';
+    entry.innerHTML = `
+      <button id="aem-bulk-send-btn" style="width: 100%; display: inline-flex; align-items: center; gap: 8px; padding: 10px 12px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #667eea, #764ba2); box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+        <span style="font-size: 16px;">📤</span>
+        <span>Bulk Send</span>
+      </button>
+    `;
+    sidebar.appendChild(entry);
+
+    const btn = entry.querySelector('#aem-bulk-send-btn');
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showBulkComposerModal();
+    }, true);
+  } catch (e) {
+    console.warn('ensureBulkSendEntry error', e);
+  }
+}
+
+// Full custom Bulk Composer modal (independent from Gmail native composer)
+function showBulkComposerModal() {
+  const existing = document.querySelector('.aem-bulk-modal-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'aem-bulk-modal-overlay';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2147483647;
+    display: flex; align-items: center; justify-content: center;`;
+
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    width: 90%; max-width: 760px; max-height: 90vh; overflow: auto; background: #fff; border-radius: 12px; padding: 20px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.25); font-family: 'Google Sans', Roboto, Arial, sans-serif;`;
+
+  modal.innerHTML = `
+    <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="margin:0; font-size:18px; color:#1a73e8;">Bulk Composer</h3>
+      <button id="aem-close-composer" style="border:none;background:#eef2ff;color:#1a73e8;border-radius:8px;padding:6px 10px;cursor:pointer;">Close</button>
+    </div>
+    <div style="display:grid; gap:10px;">
+      <textarea id="aem-bulk-recipients" placeholder="Recipients (one email per line or comma-separated)" style="width:100%; min-height:90px; border:1px solid #dadce0; border-radius:8px; padding:10px; font-size:13px;"></textarea>
+      <input id="aem-bulk-subject" placeholder="Subject" style="width:100%; border:1px solid #dadce0; border-radius:8px; padding:10px; font-size:13px;" />
+      <textarea id="aem-bulk-body" placeholder="Message (HTML allowed)" style="width:100%; min-height:160px; border:1px solid #dadce0; border-radius:8px; padding:10px; font-size:13px;"></textarea>
+      <div>
+        <label style="font-size:12px; color:#5f6368; font-weight:600;">Attachments</label>
+        <input id="aem-file-input" type="file" multiple style="display:block; margin-top:6px;" />
+        <div id="aem-attach-list" style="margin-top:8px; display:grid; gap:6px;"></div>
+        <div style="font-size:11px;color:#5f6368;margin-top:6px;">Max 10 files, total ≤ 10MB</div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <input id="aem-start-time" type="datetime-local" style="flex:1; border:1px solid #dadce0; border-radius:8px; padding:8px;" />
+        <input id="aem-delay-ms" type="number" min="0" placeholder="Delay between emails (ms)" style="width:220px; border:1px solid #dadce0; border-radius:8px; padding:8px;" />
+      </div>
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button id="aem-send-now" style="padding:10px 14px; border:none; border-radius:8px; background:#1a73e8; color:#fff; cursor:pointer;">Send Now</button>
+        <button id="aem-schedule" style="padding:10px 14px; border:none; border-radius:8px; background:#34a853; color:#fff; cursor:pointer;">Schedule</button>
+      </div>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  const closeBtn = modal.querySelector('#aem-close-composer');
+  closeBtn.addEventListener('click', () => overlay.remove());
+
+  const attachList = modal.querySelector('#aem-attach-list');
+  const fileInput = modal.querySelector('#aem-file-input');
+  const selected = [];
+
+  function refreshAttachList() {
+    attachList.innerHTML = '';
+    selected.forEach((att, idx) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; justify-content: space-between; align-items:center; border:1px solid #e8eaed; border-radius:6px; padding:6px 8px;';
+      row.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#202124;">
+          <span>📎</span>
+          <span>${att.filename}</span>
+          <span style="color:#5f6368;">(${Math.round(att.size/1024)} KB)</span>
+        </div>
+        <button data-idx="${idx}" style="border:none;background:#fdecea;color:#b00020;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;">Remove</button>
+      `;
+      row.querySelector('button').addEventListener('click', (e) => {
+        const i = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
+        selected.splice(i, 1);
+        refreshAttachList();
+      });
+      attachList.appendChild(row);
+    });
+  }
+
+  fileInput.addEventListener('change', () => {
+    const files = Array.from(fileInput.files || []);
+    const MAX_FILES = 10;
+    const MAX_TOTAL = 10 * 1024 * 1024;
+    let total = selected.reduce((a, b) => a + (b.size || 0), 0);
+
+    files.slice(0, MAX_FILES - selected.length).forEach((file) => {
+      if (total + file.size > MAX_TOTAL) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result.split(',')[1] || '';
+        selected.push({ filename: file.name, mimeType: file.type || 'application/octet-stream', dataBase64: base64, size: file.size });
+        refreshAttachList();
+      };
+      reader.readAsDataURL(file);
+      total += file.size;
+    });
+    // Reset input so same file can be chosen again later
+    fileInput.value = '';
+  });
+
+  function parseRecipients(text) {
+    if (!text) return [];
+    const raw = text.split(/\n|,|;|\s/).map(s => s.trim()).filter(Boolean);
+    const seen = new Set();
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+    return raw.filter(e => re.test(e) && !seen.has(e) && seen.add(e));
+  }
+
+  async function submitBulk(schedule) {
+    const recipients = parseRecipients(modal.querySelector('#aem-bulk-recipients').value);
+    const subject = (modal.querySelector('#aem-bulk-subject').value || '').trim();
+    const body = modal.querySelector('#aem-bulk-body').value || '';
+    const startVal = modal.querySelector('#aem-start-time').value;
+    const delayMs = parseInt(modal.querySelector('#aem-delay-ms').value || '1000', 10);
+
+    if (recipients.length === 0) { alert('Add at least one valid recipient'); return; }
+    if (!subject) { alert('Subject is required'); return; }
+    if (!body) { alert('Message body is required'); return; }
+
+    const emails = recipients.map(to => ({ to, subject, body, attachments: selected }));
+    const startTime = schedule && startVal ? new Date(startVal).toISOString() : new Date().toISOString();
+
+    chrome.runtime.sendMessage({ action: 'getBackendStatus' }, (statusResp) => {
+      if (statusResp && statusResp.success && statusResp.status !== 'ready') {
+        const proceed = confirm('Backend appears offline. Proceed in local mode? You must keep your PC on.');
+        if (!proceed) return;
+      }
+      chrome.runtime.sendMessage({
+        action: 'handleBulkSendHybrid',
+        emails,
+        startTime,
+        delay: delayMs
+      }, (response) => {
+        if (!response || response.error || !response.success) {
+          alert('Error: ' + (response && response.error ? response.error : 'Failed'));
+          return;
+        }
+        overlay.remove();
+      });
+    });
+  }
+
+  modal.querySelector('#aem-send-now').addEventListener('click', () => submitBulk(false));
+  modal.querySelector('#aem-schedule').addEventListener('click', () => submitBulk(true));
+
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+// Observe DOM to inject Bulk Send entry when sidebar mounts
+function startBulkSendButtonObserver() {
+  const observer = new MutationObserver(() => {
+    ensureBulkSendEntry();
+  });
+  observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
+  // Also try immediately
+  ensureBulkSendEntry();
 }
 
 // Show tab content in Gmail main view - SIMPLIFIED 3-TAB STRUCTURE
