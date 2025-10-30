@@ -15,11 +15,11 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: BACKEND_PUBLIC_URL
         sync: false
       - key: DATABASE_URL
         fromDatabase:

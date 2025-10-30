@@ -197,6 +197,17 @@ async function getRefreshToken() {
   }
 }
 
+// Start OAuth to obtain refresh token via backend
+async function initiateBackendOAuth() {
+  try {
+    const url = `${BACKEND_URL}/api/auth/start`;
+    chrome.tabs.create({ url });
+    // User completes consent; we will poll registration status later
+  } catch (e) {
+    console.error('Failed to initiate backend OAuth:', e);
+  }
+}
+
 // Initialize backend connection
 async function initializeBackend() {
   try {
@@ -213,6 +224,8 @@ async function initializeBackend() {
       return false;
     }
     
+    // Try to register with existing token (legacy). If backend needs refresh token,
+    // user can run initiateBackendOAuth() from UI to complete consent.
     const refreshToken = await getRefreshToken();
     const result = await registerUserBackend(userEmail, refreshToken);
     
@@ -472,7 +485,7 @@ async function showBackendActiveNotification(message) {
     iconUrl: 'icons/icon128.png',
     title: '🚀 TaskForce Email Manager',
     message: message,
-    buttons: [{ title: 'Close' }]
+    buttons: [{ title: 'Connect Backend' }, { title: 'Close' }]
   });
   
   // Try to open popup automatically

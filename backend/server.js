@@ -79,6 +79,117 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ============================================
+// OAUTH 2.0 AUTHORIZATION CODE FLOW (REFRESH TOKEN)
+// ============================================
+
+function getBackendPublicUrl() {
+  const url = process.env.BACKEND_PUBLIC_URL;
+  if (!url) {
+    console.warn('BACKEND_PUBLIC_URL not set - falling back to request host for redirects');
+  }
+  return url;
+}
+
+function buildGoogleOAuthUrl(state) {
+  // Requires OAuth client configured for Web application
+  const redirectUri = `${getBackendPublicUrl() || ''}/api/auth/callback`;
+  const params = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    access_type: 'offline',
+    prompt: 'consent',
+    scope: [
+      'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/gmail.modify',
+      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/calendar',
+      'https://www.googleapis.com/auth/calendar.events',
+      'https://www.googleapis.com/auth/contacts',
+      'https://www.googleapis.com/auth/contacts.readonly',
+      'https://www.googleapis.com/auth/spreadsheets.readonly',
+      'email',
+      'profile'
+    ].join(' '),
+    state: state || ''
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+// Start OAuth - redirects to Google Consent Screen
+app.get('/api/auth/start', (req, res) => {
+  try {
+    const { email } = req.query; // optional hint
+    const url = buildGoogleOAuthUrl(email ? `hint:${email}` : undefined);
+    res.redirect(url);
+  } catch (e) {
+    console.error('Error building OAuth URL:', e);
+    res.status(500).send('OAuth initialization failed');
+  }
+});
+
+// OAuth callback - exchanges code for refresh token and stores it
+app.get('/api/auth/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code) {
+      return res.status(400).send('Missing authorization code');
+    }
+
+    const redirectUri = `${getBackendPublicUrl() || ''}/api/auth/callback`;
+
+    // Exchange code for tokens
+    const tokenResp = await axios.post('https://oauth2.googleapis.com/token', {
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: redirectUri
+    });
+
+    const { access_token, refresh_token, id_token } = tokenResp.data;
+    if (!refresh_token) {
+      console.warn('No refresh_token returned. Ensure prompt=consent & access_type=offline and a new consent session.');
+    }
+
+    // Get user email via tokeninfo / userinfo
+    const userInfo = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` }
+    });
+    const email = userInfo.data?.email;
+    if (!email) {
+      return res.status(500).send('Could not determine user email');
+    }
+
+    // Upsert user with refresh token
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    let userId;
+    if (existing.rows.length > 0) {
+      await pool.query('UPDATE users SET refresh_token = $1 WHERE email = $2', [refresh_token || '', email]);
+      userId = existing.rows[0].id;
+    } else {
+      const insert = await pool.query('INSERT INTO users (email, refresh_token) VALUES ($1, $2) RETURNING id', [email, refresh_token || '']);
+      userId = insert.rows[0].id;
+      await pool.query('INSERT INTO email_stats (user_id) VALUES ($1)', [userId]);
+    }
+
+    // Simple success page
+    res.send(`
+      <html>
+        <head><title>Connected</title></head>
+        <body style="font-family:Arial; padding:24px;">
+          <h2>✅ Connected</h2>
+          <p>Your account <b>${email}</b> is now connected. You can close this tab and return to the extension.</p>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('OAuth callback error:', error.response?.data || error.message);
+    res.status(500).send('Authentication failed');
+  }
+});
+
 // Register/authenticate user
 app.post('/api/auth/register', async (req, res) => {
   try {
