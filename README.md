@@ -1,5 +1,7 @@
 # Advanced Email Manager Chrome Extension
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Raylyrix/TASKFORCE-EXTENTION)
+
 A powerful Chrome extension that adds advanced email management features to Gmail including scheduling, auto-follow-up, bulk sending, and smart filters.
 
 ## Features
@@ -133,6 +135,3 @@ Contributions welcome! Please feel free to submit a Pull Request.
 ## Support
 
 For issues or questions, please open an issue on GitHub.
-
-
-
