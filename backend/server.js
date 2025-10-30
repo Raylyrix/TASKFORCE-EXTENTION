@@ -416,78 +416,101 @@ function createRawEmail(to, subject, body, cc = [], bcc = []) {
 // ============================================
 
 async function sendEmail(emailRecord) {
-  try {
-    console.log(`📤 Sending email ID ${emailRecord.id} to ${emailRecord.to_email}`);
-
-    // Get user's refresh token
-    const userResult = await pool.query(
-      'SELECT refresh_token FROM users WHERE id = $1',
-      [emailRecord.user_id]
+  // Helper: sleep
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const isTransient = (err) => {
+    const msg = (err?.message || '').toLowerCase();
+    const code = err?.response?.status;
+    return (
+      code === 429 ||
+      (code >= 500 && code < 600) ||
+      msg.includes('timeout') ||
+      msg.includes('etimedout') ||
+      msg.includes('ecconnreset') ||
+      msg.includes('socket hang up')
     );
+  };
 
-    if (userResult.rows.length === 0) {
-      throw new Error('User not found');
-    }
+  const maxAttempts = 5;
+  let attempt = 0;
 
-    const refreshToken = userResult.rows[0].refresh_token;
+  while (attempt < maxAttempts) {
+    try {
+      attempt += 1;
+      console.log(`📤 Sending email ID ${emailRecord.id} to ${emailRecord.to_email} (attempt ${attempt}/${maxAttempts})`);
 
-    // Get fresh access token
-    const accessToken = await getAccessToken(refreshToken);
+      // Get user's refresh token
+      const userResult = await pool.query(
+        'SELECT refresh_token FROM users WHERE id = $1',
+        [emailRecord.user_id]
+      );
 
-    // Prepare email
-    const cc = emailRecord.cc ? emailRecord.cc.split(',').map(e => e.trim()) : [];
-    const bcc = emailRecord.bcc ? emailRecord.bcc.split(',').map(e => e.trim()) : [];
-    
-    const raw = createRawEmail(
-      emailRecord.to_email,
-      emailRecord.subject,
-      emailRecord.body,
-      cc,
-      bcc
-    );
-
-    // Send via Gmail API
-    const response = await axios.post(
-      'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
-      { raw },
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
+      if (userResult.rows.length === 0) {
+        throw new Error('User not found');
       }
-    );
 
-    // Update email status
-    await pool.query(
-      'UPDATE scheduled_emails SET status = $1, sent_at = $2 WHERE id = $3',
-      ['sent', new Date(), emailRecord.id]
-    );
+      const refreshToken = userResult.rows[0].refresh_token;
 
-    // Update stats
-    await pool.query(
-      'UPDATE email_stats SET sent_count = sent_count + 1 WHERE user_id = $1',
-      [emailRecord.user_id]
-    );
+      // Get fresh access token
+      const accessToken = await getAccessToken(refreshToken);
 
-    console.log(`✅ Email sent successfully: ID ${emailRecord.id}`);
-    return true;
-  } catch (error) {
-    console.error(`❌ Failed to send email ID ${emailRecord.id}:`, error.message);
+      // Prepare email
+      const cc = emailRecord.cc ? emailRecord.cc.split(',').map(e => e.trim()) : [];
+      const bcc = emailRecord.bcc ? emailRecord.bcc.split(',').map(e => e.trim()) : [];
+      
+      const raw = createRawEmail(
+        emailRecord.to_email,
+        emailRecord.subject,
+        emailRecord.body,
+        cc,
+        bcc
+      );
 
-    // Update email status with error
-    await pool.query(
-      'UPDATE scheduled_emails SET status = $1, error_message = $2 WHERE id = $3',
-      ['failed', error.message, emailRecord.id]
-    );
+      // Send via Gmail API
+      await axios.post(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+        { raw },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
-    // Update stats
-    await pool.query(
-      'UPDATE email_stats SET failed_count = failed_count + 1 WHERE user_id = $1',
-      [emailRecord.user_id]
-    );
+      // Update email status
+      await pool.query(
+        'UPDATE scheduled_emails SET status = $1, sent_at = $2 WHERE id = $3',
+        ['sent', new Date(), emailRecord.id]
+      );
 
-    return false;
+      // Update stats
+      await pool.query(
+        'UPDATE email_stats SET sent_count = sent_count + 1 WHERE user_id = $1',
+        [emailRecord.user_id]
+      );
+
+      console.log(`✅ Email sent successfully: ID ${emailRecord.id}`);
+      return true;
+    } catch (error) {
+      const transient = isTransient(error);
+      console.warn(`❌ Send failed (attempt ${attempt}/${maxAttempts}) id=${emailRecord.id} transient=${transient}:`, error.message);
+      if (attempt >= maxAttempts || !transient) {
+        // Final failure
+        await pool.query(
+          'UPDATE scheduled_emails SET status = $1, error_message = $2 WHERE id = $3',
+          ['failed', error.message, emailRecord.id]
+        );
+        await pool.query(
+          'UPDATE email_stats SET failed_count = failed_count + 1 WHERE user_id = $1',
+          [emailRecord.user_id]
+        );
+        return false;
+      }
+      // Exponential backoff with jitter: 1s, 2s, 4s, 8s... + 0-500ms
+      const backoff = Math.min(8000, 1000 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 500);
+      await sleep(backoff);
+    }
   }
 }
 
