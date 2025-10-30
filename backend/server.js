@@ -114,6 +114,60 @@ async function initDatabase() {
 initDatabase();
 
 // ============================================
+// VALIDATION HELPERS
+// ============================================
+
+function isNonEmptyString(v) {
+  return typeof v === 'string' && v.trim().length > 0;
+}
+
+function validateEmailAddress(email) {
+  if (!isNonEmptyString(email)) return false;
+  // Simple RFC-like regex
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+  return re.test(email.trim());
+}
+
+function parseFutureISODate(value) {
+  if (!isNonEmptyString(value)) return { ok: false, error: 'scheduledFor is required' };
+  const t = Date.parse(value);
+  if (Number.isNaN(t)) return { ok: false, error: 'scheduledFor must be ISO date' };
+  if (t < Date.now() - 60_000) return { ok: false, error: 'scheduledFor must be in the future' };
+  return { ok: true, date: new Date(t) };
+}
+
+function sanitizeSubject(subject) {
+  let s = (subject || '').toString();
+  s = s.replace(/[\r\n\t]/g, ' ').trim();
+  if (s.length > 256) s = s.slice(0, 256);
+  return s;
+}
+
+function validateBody(body) {
+  const MAX = 200 * 1024; // 200KB
+  if (!isNonEmptyString(body)) return { ok: false, error: 'body is required' };
+  const size = Buffer.byteLength(body, 'utf8');
+  if (size > MAX) return { ok: false, error: `body too large (${size}b > ${MAX}b)` };
+  return { ok: true };
+}
+
+function validateRecipientObject(emailObj) {
+  const errors = [];
+  const to = emailObj?.to;
+  if (!validateEmailAddress(to)) errors.push('invalid to');
+  const subject = sanitizeSubject(emailObj?.subject);
+  const bodyV = validateBody(emailObj?.body);
+  if (!bodyV.ok) errors.push(bodyV.error);
+  const cc = emailObj?.cc ? [].concat(emailObj.cc).filter(Boolean) : [];
+  const bcc = emailObj?.bcc ? [].concat(emailObj.bcc).filter(Boolean) : [];
+  const invalidCc = cc.find((e) => !validateEmailAddress(e));
+  const invalidBcc = bcc.find((e) => !validateEmailAddress(e));
+  if (invalidCc) errors.push('invalid cc');
+  if (invalidBcc) errors.push('invalid bcc');
+  return { ok: errors.length === 0, errors, subject, cc, bcc };
+}
+
+// ============================================
 // API ENDPOINTS
 // ============================================
 
@@ -241,9 +295,8 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, refreshToken } = req.body;
     
-    if (!email || !refreshToken) {
-      return res.status(400).json({ error: 'Email and refresh token required' });
-    }
+    if (!validateEmailAddress(email)) return res.status(400).json({ error: 'Invalid email' });
+    if (!isNonEmptyString(refreshToken)) return res.status(400).json({ error: 'refreshToken required' });
 
     // Check if user exists
     const existingUser = await pool.query(
@@ -286,12 +339,18 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/emails/schedule', async (req, res) => {
   try {
     const { userId, email, scheduledFor, idempotencyKey } = req.body;
+    if (!Number.isInteger(userId)) return res.status(400).json({ error: 'userId must be integer' });
+    if (!email || typeof email !== 'object') return res.status(400).json({ error: 'email object required' });
+    const rec = validateRecipientObject(email);
+    if (!rec.ok) return res.status(422).json({ error: 'invalid email payload', details: rec.errors });
+    const date = parseFutureISODate(scheduledFor);
+    if (!date.ok) return res.status(422).json({ error: date.error });
     
     if (!userId || !email || !scheduledFor) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const key = idempotencyKey || crypto.createHash('sha256').update(`${userId}|${email.to}|${email.subject}|${scheduledFor}`).digest('hex').slice(0, 64);
+    const key = idempotencyKey || crypto.createHash('sha256').update(`${userId}|${email.to}|${rec.subject}|${date.date.toISOString()}`).digest('hex').slice(0, 64);
     const result = await pool.query(
       `INSERT INTO scheduled_emails 
        (user_id, to_email, cc, bcc, subject, body, scheduled_for, idempotency_key, status)
@@ -301,11 +360,11 @@ app.post('/api/emails/schedule', async (req, res) => {
       [
         userId,
         email.to,
-        email.cc || null,
-        email.bcc || null,
-        email.subject,
+        rec.cc.length ? rec.cc.join(',') : null,
+        rec.bcc.length ? rec.bcc.join(',') : null,
+        rec.subject,
         email.body,
-        scheduledFor,
+        date.date,
         key
       ]
     );
@@ -326,17 +385,21 @@ app.post('/api/emails/schedule', async (req, res) => {
 app.post('/api/emails/schedule-bulk', async (req, res) => {
   try {
     const { userId, emails, startTime, delay } = req.body;
-    
-    if (!userId || !emails || emails.length === 0) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
+    if (!Number.isInteger(userId)) return res.status(400).json({ error: 'userId must be integer' });
+    if (!Array.isArray(emails) || emails.length === 0) return res.status(400).json({ error: 'emails array required' });
+    if (emails.length > 1000) return res.status(413).json({ error: 'Too many emails in one batch (max 1000)' });
+    const delayMs = Number.isInteger(delay) ? delay : 1000;
+    const startParse = parseFutureISODate(startTime || new Date(Date.now() + 1000).toISOString());
+    if (!startParse.ok) return res.status(422).json({ error: startParse.error });
 
     const emailIds = [];
     
     for (let i = 0; i < emails.length; i++) {
       const email = emails[i];
+      const rec = validateRecipientObject(email);
+      if (!rec.ok) continue; // skip invalid entries silently
       // Calculate scheduled time for each email based on delay
-      const scheduledTime = new Date(new Date(startTime).getTime() + (i * (delay || 1000)));
+      const scheduledTime = new Date(startParse.date.getTime() + (i * delayMs));
       
       const key = crypto.createHash('sha256').update(`${userId}|${email.to}|${email.subject}|${scheduledTime.toISOString()}`).digest('hex').slice(0, 64);
       const result = await pool.query(
@@ -348,9 +411,9 @@ app.post('/api/emails/schedule-bulk', async (req, res) => {
         [
           userId,
           email.to,
-          email.cc || null,
-          email.bcc || null,
-          email.subject,
+          rec.cc.length ? rec.cc.join(',') : null,
+          rec.bcc.length ? rec.bcc.join(',') : null,
+          rec.subject,
           email.body,
           scheduledTime,
           key
