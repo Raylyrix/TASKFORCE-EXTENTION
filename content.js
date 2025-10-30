@@ -2564,56 +2564,39 @@ function continueBulkSendProcess(emails, startTime, delay) {
     return;
   }
   
-  // Check if hybrid system is available
-  if (typeof window.handleBulkSendHybrid === 'function') {
-    // Use hybrid system
-    const startTimeObj = startTime ? new Date(startTime) : new Date();
-    window.handleBulkSendHybrid(emails, startTimeObj, delay).then(() => {
-      // Close modal
+  // Always route via background hybrid handler for reliability
+  chrome.runtime.sendMessage({
+    action: 'handleBulkSendHybrid',
+    emails: emails,
+    startTime: startTime,
+    delay: delay
+  }, (response) => {
+    if (chrome.runtime.lastError) {
+      const error = chrome.runtime.lastError.message;
+      if (error.includes('Extension context invalidated') || error.includes('message port closed')) {
+        alert('Extension was reloaded. Please refresh this page and try again.');
+        window.location.reload();
+        return;
+      }
+      alert('Error sending message: ' + error);
+      return;
+    }
+
+    if (!response) {
+      alert('No response from extension. Please check if the extension is running.');
+      return;
+    }
+
+    if (response.error || !response.success) {
+      alert('Error: ' + (response.error || 'Unknown error'));
+    } else {
+      // Close the modal overlay
       const modal = document.querySelector('.aem-bulk-modal-overlay');
       if (modal) {
         modal.remove();
       }
-    }).catch((error) => {
-      alert('Error: ' + error.message);
-    });
-  } else {
-    // Fallback to traditional method
-    chrome.runtime.sendMessage({
-      action: 'startBulkSending',
-      emails: emails,
-      startTime: startTime,
-      delay: delay
-    }, (response) => {
-      // Handle runtime errors
-      if (chrome.runtime.lastError) {
-        const error = chrome.runtime.lastError.message;
-        if (error.includes('Extension context invalidated') || error.includes('message port closed')) {
-          alert('Extension was reloaded. Please refresh this page and try again.');
-          window.location.reload();
-          return;
-        }
-        alert('Error sending message: ' + error);
-        return;
-      }
-      
-      if (!response) {
-        alert('No response from extension. Please check if the extension is running.');
-        return;
-      }
-      
-      if (response.error || !response.success) {
-        alert('Error: ' + (response.error || 'Unknown error'));
-      } else {
-        alert(`✅ Started sending ${emails.length} emails!\n\n⚠️ Please keep your PC on until emails are sent.`);
-        // Close the modal overlay
-        const modal = document.querySelector('.aem-bulk-modal-overlay');
-        if (modal) {
-          modal.remove();
-        }
-      }
-    });
-  }
+    }
+  });
 }
 
 // Show analytics modal

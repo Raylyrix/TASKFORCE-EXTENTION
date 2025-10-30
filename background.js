@@ -713,6 +713,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true;
   }
+
+  // Hybrid system handlers (backend integration)
+  if (request.action === 'handleBulkSendHybrid') {
+    try {
+      const start = request.startTime ? new Date(request.startTime) : new Date();
+      if (typeof handleBulkSendHybrid === 'function') {
+        handleBulkSendHybrid(request.emails || [], start, request.delay || 0)
+          .then(() => sendResponse({ success: true }))
+          .catch((err) => sendResponse({ success: false, error: err?.message || 'Hybrid send failed' }));
+        return true;
+      }
+      sendResponse({ success: false, error: 'Hybrid handler not available' });
+    } catch (e) {
+      sendResponse({ success: false, error: e?.message || 'Error' });
+    }
+  }
+
+  if (request.action === 'initiateBackendOAuth') {
+    try {
+      if (typeof initiateBackendOAuth === 'function') {
+        initiateBackendOAuth();
+        sendResponse({ success: true });
+      } else {
+        sendResponse({ success: false, error: 'OAuth initiator not available' });
+      }
+    } catch (e) {
+      sendResponse({ success: false, error: e?.message || 'Error' });
+    }
+    return true;
+  }
 });
 
 // Schedule an email to be sent later
