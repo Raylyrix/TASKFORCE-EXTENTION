@@ -3,11 +3,37 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const cron = require('node-cron');
 const axios = require('axios');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+// Basic security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
+
+// Simple rate limiting (per-IP)
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const RATE_LIMIT_MAX = 300; // 300 req/min
+const ipBuckets = new Map();
+app.use((req, res, next) => {
+  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.ip;
+  const now = Date.now();
+  const bucket = ipBuckets.get(ip) || { count: 0, reset: now + RATE_LIMIT_WINDOW_MS };
+  if (now > bucket.reset) {
+    bucket.count = 0;
+    bucket.reset = now + RATE_LIMIT_WINDOW_MS;
+  }
+  bucket.count += 1;
+  ipBuckets.set(ip, bucket);
+  if (bucket.count > RATE_LIMIT_MAX) return res.status(429).json({ error: 'Too many requests' });
+  next();
+});
 
 // PostgreSQL Database Connection
 const pool = new Pool({
@@ -59,6 +85,23 @@ async function initDatabase() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_scheduled_emails_status 
       ON scheduled_emails(status, scheduled_for)
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        BEGIN
+          ALTER TABLE scheduled_emails ADD COLUMN idempotency_key VARCHAR(255);
+        EXCEPTION WHEN duplicate_column THEN
+          NULL;
+        END;
+      END$$;
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_scheduled_emails_idempotency
+      ON scheduled_emails(idempotency_key)
+      WHERE idempotency_key IS NOT NULL
     `);
 
     console.log('✅ Database initialized successfully');
@@ -169,10 +212,10 @@ app.get('/api/auth/callback', async (req, res) => {
     const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     let userId;
     if (existing.rows.length > 0) {
-      await pool.query('UPDATE users SET refresh_token = $1 WHERE email = $2', [refresh_token || '', email]);
+      await pool.query('UPDATE users SET refresh_token = $1 WHERE email = $2', [refresh_token ? encrypt(refresh_token) : '', email]);
       userId = existing.rows[0].id;
     } else {
-      const insert = await pool.query('INSERT INTO users (email, refresh_token) VALUES ($1, $2) RETURNING id', [email, refresh_token || '']);
+      const insert = await pool.query('INSERT INTO users (email, refresh_token) VALUES ($1, $2) RETURNING id', [email, refresh_token ? encrypt(refresh_token) : '']);
       userId = insert.rows[0].id;
       await pool.query('INSERT INTO email_stats (user_id) VALUES ($1)', [userId]);
     }
@@ -214,14 +257,14 @@ app.post('/api/auth/register', async (req, res) => {
       // Update refresh token
       await pool.query(
         'UPDATE users SET refresh_token = $1 WHERE email = $2',
-        [refreshToken, email]
+        [encrypt(refreshToken), email]
       );
       userId = existingUser.rows[0].id;
     } else {
       // Create new user
       const result = await pool.query(
         'INSERT INTO users (email, refresh_token) VALUES ($1, $2) RETURNING id',
-        [email, refreshToken]
+        [email, encrypt(refreshToken)]
       );
       userId = result.rows[0].id;
 
@@ -242,16 +285,18 @@ app.post('/api/auth/register', async (req, res) => {
 // Schedule email
 app.post('/api/emails/schedule', async (req, res) => {
   try {
-    const { userId, email, scheduledFor } = req.body;
+    const { userId, email, scheduledFor, idempotencyKey } = req.body;
     
     if (!userId || !email || !scheduledFor) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    const key = idempotencyKey || crypto.createHash('sha256').update(`${userId}|${email.to}|${email.subject}|${scheduledFor}`).digest('hex').slice(0, 64);
     const result = await pool.query(
       `INSERT INTO scheduled_emails 
-       (user_id, to_email, cc, bcc, subject, body, scheduled_for, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'scheduled')
+       (user_id, to_email, cc, bcc, subject, body, scheduled_for, idempotency_key, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled')
+       ON CONFLICT (idempotency_key) DO NOTHING
        RETURNING id`,
       [
         userId,
@@ -260,14 +305,17 @@ app.post('/api/emails/schedule', async (req, res) => {
         email.bcc || null,
         email.subject,
         email.body,
-        scheduledFor
+        scheduledFor,
+        key
       ]
     );
 
+    if (result.rows.length === 0) {
+      return res.json({ success: true, duplicate: true });
+    }
     const emailId = result.rows[0].id;
     console.log(`📧 Email scheduled: ID ${emailId} for ${scheduledFor}`);
-
-    res.json({ success: true, emailId });
+    res.json({ success: true, emailId, idempotencyKey: key });
   } catch (error) {
     console.error('Schedule email error:', error);
     res.status(500).json({ error: error.message });
@@ -290,10 +338,12 @@ app.post('/api/emails/schedule-bulk', async (req, res) => {
       // Calculate scheduled time for each email based on delay
       const scheduledTime = new Date(new Date(startTime).getTime() + (i * (delay || 1000)));
       
+      const key = crypto.createHash('sha256').update(`${userId}|${email.to}|${email.subject}|${scheduledTime.toISOString()}`).digest('hex').slice(0, 64);
       const result = await pool.query(
         `INSERT INTO scheduled_emails 
-         (user_id, to_email, cc, bcc, subject, body, scheduled_for, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'scheduled')
+         (user_id, to_email, cc, bcc, subject, body, scheduled_for, idempotency_key, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled')
+         ON CONFLICT (idempotency_key) DO NOTHING
          RETURNING id`,
         [
           userId,
@@ -302,11 +352,14 @@ app.post('/api/emails/schedule-bulk', async (req, res) => {
           email.bcc || null,
           email.subject,
           email.body,
-          scheduledTime
+          scheduledTime,
+          key
         ]
       );
       
-      emailIds.push(result.rows[0].id);
+      if (result.rows.length > 0) {
+        emailIds.push(result.rows[0].id);
+      }
     }
 
     console.log(`📧 Bulk emails scheduled: ${emailIds.length} emails from ${startTime}`);
@@ -334,6 +387,21 @@ app.get('/api/emails/scheduled/:userId', async (req, res) => {
   } catch (error) {
     console.error('Get scheduled emails error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Metrics: basic counters
+app.get('/metrics', async (req, res) => {
+  try {
+    const totals = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM scheduled_emails WHERE status='scheduled') AS queued,
+        (SELECT COUNT(*) FROM scheduled_emails WHERE status='sent') AS sent,
+        (SELECT COUNT(*) FROM scheduled_emails WHERE status='failed') AS failed
+    `);
+    res.json({ success: true, metrics: totals.rows[0] });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 
@@ -375,12 +443,36 @@ app.get('/api/stats/:userId', async (req, res) => {
 // GOOGLE OAUTH HELPERS
 // ============================================
 
+function getEncKey() {
+  const key = (process.env.JWT_SECRET || '').padEnd(32, '0').slice(0, 32);
+  return Buffer.from(key);
+}
+function encrypt(text) {
+  if (!text) return '';
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', getEncKey(), iv);
+  const enc = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, enc]).toString('base64');
+}
+function decrypt(blob) {
+  if (!blob) return '';
+  const data = Buffer.from(blob, 'base64');
+  const iv = data.slice(0, 12);
+  const tag = data.slice(12, 28);
+  const enc = data.slice(28);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', getEncKey(), iv);
+  decipher.setAuthTag(tag);
+  const dec = Buffer.concat([decipher.update(enc), decipher.final()]);
+  return dec.toString('utf8');
+}
+
 async function getAccessToken(refreshToken) {
   try {
     const response = await axios.post('https://oauth2.googleapis.com/token', {
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      refresh_token: refreshToken,
+      refresh_token: decrypt(refreshToken),
       grant_type: 'refresh_token'
     });
 
@@ -491,6 +583,20 @@ async function sendEmail(emailRecord) {
       );
 
       console.log(`✅ Email sent successfully: ID ${emailRecord.id}`);
+      // Optional webhook
+      if (process.env.WEBHOOK_URL) {
+        try {
+          await axios.post(process.env.WEBHOOK_URL, {
+            type: 'email_sent',
+            id: emailRecord.id,
+            to: emailRecord.to_email,
+            subject: emailRecord.subject,
+            sentAt: new Date().toISOString()
+          });
+        } catch (e) {
+          console.warn('Webhook failed:', e.message);
+        }
+      }
       return true;
     } catch (error) {
       const transient = isTransient(error);
@@ -505,6 +611,20 @@ async function sendEmail(emailRecord) {
           'UPDATE email_stats SET failed_count = failed_count + 1 WHERE user_id = $1',
           [emailRecord.user_id]
         );
+        if (process.env.WEBHOOK_URL) {
+          try {
+            await axios.post(process.env.WEBHOOK_URL, {
+              type: 'email_failed',
+              id: emailRecord.id,
+              to: emailRecord.to_email,
+              subject: emailRecord.subject,
+              error: error.message,
+              failedAt: new Date().toISOString()
+            });
+          } catch (e) {
+            console.warn('Webhook failed:', e.message);
+          }
+        }
         return false;
       }
       // Exponential backoff with jitter: 1s, 2s, 4s, 8s... + 0-500ms
@@ -547,6 +667,17 @@ cron.schedule('* * * * *', async () => {
     }
   } catch (error) {
     console.error('❌ Cron job error:', error);
+  }
+});
+
+// Daily retention job at 03:00
+cron.schedule('0 3 * * *', async () => {
+  try {
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const res1 = await pool.query('DELETE FROM scheduled_emails WHERE status IN (\'sent\', \'failed\') AND COALESCE(sent_at, created_at) < $1', [cutoff]);
+    console.log(`🧹 Retention: deleted ${res1.rowCount} old records`);
+  } catch (e) {
+    console.error('Retention job error:', e.message);
   }
 });
 
