@@ -38,6 +38,31 @@ Before using the extension, you need to set up Gmail API credentials:
    }
    ```
 
+## Backend (Optional, for 24/7 sending)
+
+If you want emails to send even when the PC is off, deploy the backend (`backend/`).
+
+### Required Environment Variables
+
+| Variable | Where | Required | Description |
+|---|---|---|---|
+| `DATABASE_URL` | Backend | Yes | PostgreSQL connection string (Render auto-wires via `render.yaml`) |
+| `GOOGLE_CLIENT_ID` | Backend | Yes | OAuth 2.0 Client ID from Google Cloud |
+| `GOOGLE_CLIENT_SECRET` | Backend | Yes | OAuth 2.0 Client Secret from Google Cloud |
+| `PORT` | Backend | No | Render sets this automatically; server uses `process.env.PORT` |
+| `NODE_ENV` | Backend | No | Set to `production` in Render |
+| `JWT_SECRET` | Backend | No | Optional: for future auth/session usage |
+
+> Note: The backend currently stores a token provided by the extension during registration. For true long‑lived background sending, configure your Google OAuth to issue a refresh token and send that to the backend at registration time.
+
+### Point the Extension to Your Backend
+
+Edit `backend-integration.js` and set:
+```javascript
+const BACKEND_URL = 'https://your-service.onrender.com';
+```
+Reload the extension after updating.
+
 ## Usage
 
 ### Scheduling Emails
