@@ -83,17 +83,20 @@ app.get('/health', (req, res) => {
 // OAUTH 2.0 AUTHORIZATION CODE FLOW (REFRESH TOKEN)
 // ============================================
 
-function getBackendPublicUrl() {
+function getBackendPublicUrl(req) {
   const url = process.env.BACKEND_PUBLIC_URL;
-  if (!url) {
-    console.warn('BACKEND_PUBLIC_URL not set - falling back to request host for redirects');
-  }
-  return url;
+  if (url && url.trim().length > 0) return url.replace(/\/$/, '');
+  // Fallback: derive from request
+  const proto = (req.headers['x-forwarded-proto'] || 'https').toString();
+  const host = (req.headers['x-forwarded-host'] || req.headers.host || '').toString();
+  const base = `${proto}://${host}`;
+  console.warn('BACKEND_PUBLIC_URL not set - derived from request as:', base);
+  return base;
 }
 
-function buildGoogleOAuthUrl(state) {
+function buildGoogleOAuthUrl(req, state) {
   // Requires OAuth client configured for Web application
-  const redirectUri = `${getBackendPublicUrl() || ''}/api/auth/callback`;
+  const redirectUri = `${getBackendPublicUrl(req)}/api/auth/callback`;
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: redirectUri,
@@ -121,7 +124,7 @@ function buildGoogleOAuthUrl(state) {
 app.get('/api/auth/start', (req, res) => {
   try {
     const { email } = req.query; // optional hint
-    const url = buildGoogleOAuthUrl(email ? `hint:${email}` : undefined);
+    const url = buildGoogleOAuthUrl(req, email ? `hint:${email}` : undefined);
     res.redirect(url);
   } catch (e) {
     console.error('Error building OAuth URL:', e);
@@ -137,7 +140,7 @@ app.get('/api/auth/callback', async (req, res) => {
       return res.status(400).send('Missing authorization code');
     }
 
-    const redirectUri = `${getBackendPublicUrl() || ''}/api/auth/callback`;
+    const redirectUri = `${getBackendPublicUrl(req)}/api/auth/callback`;
 
     // Exchange code for tokens
     const tokenResp = await axios.post('https://oauth2.googleapis.com/token', {

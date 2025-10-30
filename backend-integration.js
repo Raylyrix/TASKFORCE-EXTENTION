@@ -8,7 +8,27 @@ const BACKEND_URL = 'https://your-backend.herokuapp.com'; // Update this with yo
 let backendStatus = 'unknown'; // 'ready', 'offline', 'checking', 'unknown'
 let backendCheckInterval = null;
 let backendUserId = null;
-let pendingEmails = []; // Store emails queued when backend was offline
+// Persist pending emails in storage to survive service worker restarts
+async function addPendingEmail(email, scheduledFor) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get('pendingEmails', (result) => {
+      const list = result.pendingEmails || [];
+      list.push({ email, scheduledFor, addedAt: Date.now() });
+      chrome.storage.local.set({ pendingEmails: list }, () => resolve());
+    });
+  });
+}
+
+async function getPendingEmails() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get('pendingEmails', (result) => resolve(result.pendingEmails || []));
+  });
+}
+
+async function clearPendingEmails() {
+  return new Promise((resolve) => chrome.storage.local.set({ pendingEmails: [] }, () => resolve()));
+}
+
 
 // ============================================
 // BACKEND HEALTH MONITORING
@@ -285,8 +305,8 @@ async function scheduleEmailHybrid(email, scheduledFor, origin = 'compose') {
         // Show warning
         await showLocalModeNotification('⚠️ Backend offline - Please DO NOT close or turn off your PC!');
         
-        // Store for later migration
-        pendingEmails.push({ email, scheduledFor, timestamp: Date.now() });
+        // Store for later migration (persistent)
+        await addPendingEmail(email, scheduledFor);
       }
     });
   } catch (error) {
@@ -530,14 +550,15 @@ async function showBackendMigratedNotification(remaining, total) {
 
 // Migrate pending emails to backend when it comes online
 async function migratePendingEmailsToBackend() {
-  if (pendingEmails.length === 0) return;
+  const list = await getPendingEmails();
+  if (list.length === 0) return;
   
   chrome.storage.local.get('backendUserId', async (result) => {
     if (!result.backendUserId) return;
     
-    console.log(`🔄 Migrating ${pendingEmails.length} pending emails to backend`);
+    console.log(`🔄 Migrating ${list.length} pending emails to backend`);
     
-    for (const pending of pendingEmails) {
+    for (const pending of list) {
       try {
         await scheduleEmailOnBackend(result.backendUserId, pending.email, pending.scheduledFor);
       } catch (error) {
@@ -546,7 +567,7 @@ async function migratePendingEmailsToBackend() {
     }
     
     // Clear pending emails
-    pendingEmails = [];
+    await clearPendingEmails();
     console.log('✅ Pending emails migrated');
   });
 }
