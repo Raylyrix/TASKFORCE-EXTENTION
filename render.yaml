@@ -1,0 +1,27 @@
+databases:
+  - name: taskforce-postgres
+    databaseName: taskforce_emails
+    plan: free
+
+services:
+  - type: web
+    name: taskforce-email-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: taskforce-postgres
+          property: connectionString
