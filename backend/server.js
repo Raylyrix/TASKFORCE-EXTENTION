@@ -116,6 +116,17 @@ async function initDatabase() {
       WHERE idempotency_key IS NOT NULL
     `);
 
+    await pool.query(`
+      DO $$
+      BEGIN
+        BEGIN
+          ALTER TABLE scheduled_emails ADD COLUMN attachments_json TEXT;
+        EXCEPTION WHEN duplicate_column THEN
+          NULL;
+        END;
+      END$$;
+    `);
+
     console.log('✅ Database initialized successfully');
   } catch (error) {
     console.error('❌ Database initialization error:', error);
@@ -176,7 +187,28 @@ function validateRecipientObject(emailObj) {
   const invalidBcc = bcc.find((e) => !validateEmailAddress(e));
   if (invalidCc) errors.push('invalid cc');
   if (invalidBcc) errors.push('invalid bcc');
-  return { ok: errors.length === 0, errors, subject, cc, bcc };
+  // Attachments validation (optional): [{ filename, mimeType, dataBase64 }]
+  const attachments = Array.isArray(emailObj?.attachments) ? emailObj.attachments : [];
+  const MAX_FILES = 10;
+  const MAX_TOTAL = 10 * 1024 * 1024; // 10MB total (keep below Gmail 25MB limit with overhead)
+  let totalSize = 0;
+  const safeAttachments = [];
+  if (attachments.length > MAX_FILES) errors.push(`too many attachments (max ${MAX_FILES})`);
+  attachments.slice(0, MAX_FILES).forEach((att, idx) => {
+    const fname = (att?.filename || `file${idx + 1}`).toString().replace(/[\r\n]/g, '').slice(0, 200);
+    const mime = (att?.mimeType || 'application/octet-stream').toString();
+    const b64 = (att?.dataBase64 || '').toString();
+    if (!/^[-A-Za-z0-9+\/]+=*$/.test(b64)) {
+      errors.push('attachment dataBase64 invalid');
+      return;
+    }
+    const size = Buffer.byteLength(b64, 'base64');
+    totalSize += size;
+    safeAttachments.push({ filename: fname, mimeType: mime, dataBase64: b64, size });
+  });
+  if (totalSize > MAX_TOTAL) errors.push(`attachments too large (total ${totalSize}b > ${MAX_TOTAL}b)`);
+
+  return { ok: errors.length === 0, errors, subject, cc, bcc, attachments: safeAttachments };
 }
 
 // ============================================
@@ -365,8 +397,8 @@ app.post('/api/emails/schedule', async (req, res) => {
     const key = idempotencyKey || crypto.createHash('sha256').update(`${userId}|${email.to}|${rec.subject}|${date.date.toISOString()}`).digest('hex').slice(0, 64);
     const result = await pool.query(
       `INSERT INTO scheduled_emails 
-       (user_id, to_email, cc, bcc, subject, body, scheduled_for, idempotency_key, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled')
+       (user_id, to_email, cc, bcc, subject, body, scheduled_for, idempotency_key, attachments_json, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'scheduled')
        ON CONFLICT (idempotency_key) DO NOTHING
        RETURNING id`,
       [
@@ -377,7 +409,8 @@ app.post('/api/emails/schedule', async (req, res) => {
         rec.subject,
         email.body,
         date.date,
-        key
+        key,
+        rec.attachments.length ? JSON.stringify(rec.attachments) : null
       ]
     );
 
@@ -416,8 +449,8 @@ app.post('/api/emails/schedule-bulk', async (req, res) => {
       const key = crypto.createHash('sha256').update(`${userId}|${email.to}|${email.subject}|${scheduledTime.toISOString()}`).digest('hex').slice(0, 64);
       const result = await pool.query(
         `INSERT INTO scheduled_emails 
-         (user_id, to_email, cc, bcc, subject, body, scheduled_for, idempotency_key, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled')
+         (user_id, to_email, cc, bcc, subject, body, scheduled_for, idempotency_key, attachments_json, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'scheduled')
          ON CONFLICT (idempotency_key) DO NOTHING
          RETURNING id`,
         [
@@ -428,7 +461,8 @@ app.post('/api/emails/schedule-bulk', async (req, res) => {
           rec.subject,
           email.body,
           scheduledTime,
-          key
+          key,
+          rec.attachments.length ? JSON.stringify(rec.attachments) : null
         ]
       );
       
@@ -558,24 +592,47 @@ async function getAccessToken(refreshToken) {
   }
 }
 
-function createRawEmail(to, subject, body, cc = [], bcc = []) {
-  const from = 'from@example.com'; // Will be replaced by Gmail
-  let email = `From: ${from}\r\n`;
-  email += `To: ${Array.isArray(to) ? to.join(', ') : to}\r\n`;
-  
-  if (cc && cc.length > 0) {
-    email += `Cc: ${cc.join(', ')}\r\n`;
-  }
-  
-  if (bcc && bcc.length > 0) {
-    email += `Bcc: ${bcc.join(', ')}\r\n`;
-  }
-  
-  email += `Subject: ${subject}\r\n`;
-  email += `Content-Type: text/html; charset=utf-8\r\n`;
-  email += `\r\n${body}`;
+function createRawEmail(to, subject, body, cc = [], bcc = [], attachments = []) {
+  const from = 'from@example.com'; // placeholder, Gmail will set actual sender
+  const boundary = `====AEM_${Date.now()}_${Math.random().toString(36).slice(2)}====`;
+  const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
 
-  return Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+  let headers = '';
+  headers += `From: ${from}\r\n`;
+  headers += `To: ${Array.isArray(to) ? to.join(', ') : to}\r\n`;
+  if (cc && cc.length > 0) headers += `Cc: ${cc.join(', ')}\r\n`;
+  if (bcc && bcc.length > 0) headers += `Bcc: ${bcc.join(', ')}\r\n`;
+  headers += `Subject: ${subject}\r\n`;
+
+  let mime = '';
+  if (!hasAttachments) {
+    headers += `Content-Type: text/html; charset=utf-8\r\n`;
+    mime = `${headers}\r\n${body}`;
+  } else {
+    headers += `MIME-Version: 1.0\r\n`;
+    headers += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n`;
+    mime += `${headers}\r\n`;
+    // Body part
+    mime += `--${boundary}\r\n`;
+    mime += `Content-Type: text/html; charset="UTF-8"\r\n`;
+    mime += `Content-Transfer-Encoding: 7bit\r\n\r\n`;
+    mime += `${body}\r\n`;
+    // Attachments
+    attachments.forEach((att) => {
+      mime += `--${boundary}\r\n`;
+      mime += `Content-Type: ${att.mimeType}; name="${att.filename}"\r\n`;
+      mime += `Content-Transfer-Encoding: base64\r\n`;
+      mime += `Content-Disposition: attachment; filename="${att.filename}"\r\n\r\n`;
+      // Split base64 into 76-char lines per RFC
+      const b64 = att.dataBase64.replace(/\r?\n/g, '');
+      for (let i = 0; i < b64.length; i += 76) {
+        mime += b64.slice(i, i + 76) + '\r\n';
+      }
+    });
+    mime += `--${boundary}--`;
+  }
+
+  return Buffer.from(mime).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
 }
 
 // ============================================
@@ -624,13 +681,22 @@ async function sendEmail(emailRecord) {
       // Prepare email
       const cc = emailRecord.cc ? emailRecord.cc.split(',').map(e => e.trim()) : [];
       const bcc = emailRecord.bcc ? emailRecord.bcc.split(',').map(e => e.trim()) : [];
+      let attachments = [];
+      if (emailRecord.attachments_json) {
+        try {
+          attachments = JSON.parse(emailRecord.attachments_json);
+        } catch (_) {
+          attachments = [];
+        }
+      }
       
       const raw = createRawEmail(
         emailRecord.to_email,
         emailRecord.subject,
         emailRecord.body,
         cc,
-        bcc
+        bcc,
+        attachments
       );
 
       // Send via Gmail API
