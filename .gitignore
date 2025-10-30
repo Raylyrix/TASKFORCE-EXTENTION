@@ -1,24 +1,15 @@
-# Chrome Extension
-*.crx
-*.pem
-
-# Gmail API Credentials
-credentials.json
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Editor
-.vscode/
-.idea/
-
-# Logs
-*.log
-npm-debug.log*
-
-# Node
 node_modules/
-
-
-
+.env
+*.log
+.DS_Store
+dist/
+.vscode/
+*.pem
+*.key
+*.crt
+.env.local
+.env.production
+client_*.json
+client_installed.json
+client_secret_*.json
+*.backup
