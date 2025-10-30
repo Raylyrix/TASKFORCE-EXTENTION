@@ -478,9 +478,12 @@ async function startBulkSendLocally(emails, startTime, delay) {
 // ============================================
 
 // Show backend active notification with auto-popup
+const CONNECT_BACKEND_NOTIFICATION_ID = 'aem-connect-backend';
+const LOCAL_MODE_NOTIFICATION_ID = 'aem-local-mode';
+
 async function showBackendActiveNotification(message) {
-  // Create notification
-  chrome.notifications.create({
+  // Create notification with stable ID and buttons
+  chrome.notifications.create(CONNECT_BACKEND_NOTIFICATION_ID, {
     type: 'basic',
     iconUrl: 'icons/icon128.png',
     title: '🚀 TaskForce Email Manager',
@@ -491,18 +494,17 @@ async function showBackendActiveNotification(message) {
   // Try to open popup automatically
   chrome.action.openPopup();
   
-  // Also show in console
   console.log('✅ Backend Active:', message);
 }
 
 // Show local mode notification
 async function showLocalModeNotification(message) {
-  chrome.notifications.create({
+  chrome.notifications.create(LOCAL_MODE_NOTIFICATION_ID, {
     type: 'basic',
     iconUrl: 'icons/icon128.png',
     title: '⚠️ TaskForce Email Manager',
     message: message,
-    buttons: [{ title: 'Keep Open' }]
+    buttons: [{ title: 'Connect Backend' }, { title: 'OK' }]
   });
   
   console.log('⚠️ Local Mode:', message);
@@ -576,6 +578,17 @@ chrome.runtime.onInstalled.addListener(() => {
   startBackendMonitoring();
 });
 
+// Handle notification button clicks
+chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
+  if (notificationId === CONNECT_BACKEND_NOTIFICATION_ID && buttonIndex === 0) {
+    // User clicked "Connect Backend"
+    initiateBackendOAuth();
+  }
+  if (notificationId === LOCAL_MODE_NOTIFICATION_ID && buttonIndex === 0) {
+    initiateBackendOAuth();
+  }
+});
+
 // Start monitoring immediately
 startBackendMonitoring();
 
@@ -584,4 +597,5 @@ if (typeof window !== 'undefined') {
   window.scheduleEmailHybrid = scheduleEmailHybrid;
   window.handleBulkSendHybrid = handleBulkSendHybrid;
   window.checkBackendHealthDetailed = checkBackendHealthDetailed;
+  window.initiateBackendOAuth = initiateBackendOAuth;
 }
