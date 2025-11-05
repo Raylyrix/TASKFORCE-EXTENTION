@@ -1,9 +1,8 @@
 ﻿// Advanced Backend Integration with Health Checks & Hybrid Sending
 // TaskForce Email Manager
 
-// Configuration - CHANGE THIS TO YOUR BACKEND URL
-// For local development, you can run the backend on http://localhost:3000
-const BACKEND_URL = typeof BACKEND_URL !== 'undefined' ? BACKEND_URL : 'https://taskforce.onrender.com';
+// Configuration: lock to deployed Render domain (update if different)
+const BACKEND_URL = 'https://taskforce-email-backend.onrender.com';
 
 // Backend status tracking
 let backendStatus = 'unknown'; // 'ready', 'offline', 'checking', 'unknown'
