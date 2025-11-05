@@ -2,7 +2,7 @@
 // TaskForce Email Manager
 
 // Configuration: lock to deployed Render domain (update if different)
-const BACKEND_URL = 'https://taskforce-email-backend.onrender.com';
+const BACKEND_URL = 'https://taskforce.onrender.com';
 
 // Backend status tracking
 let backendStatus = 'unknown'; // 'ready', 'offline', 'checking', 'unknown'
