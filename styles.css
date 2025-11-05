@@ -22,6 +22,201 @@
   --shadow-lg: 0 2px 4px rgba(60, 64, 67, 0.3), 0 4px 12px 3px rgba(60, 64, 67, 0.15);
 }
 
+/* Luxe theme (black/graphite/ivory) */
+.aem-theme-luxe {
+  --luxe-bg: #0f1113;
+  --luxe-surface: #14171a;
+  --luxe-elev: #1b1f23;
+  --luxe-text: #f3f4f6;
+  --luxe-subtext: #c7c9cc;
+  --luxe-border: #2a2f35;
+  --luxe-accent: #e5e7eb;
+  --luxe-gradient: linear-gradient(135deg, #0f1113, #1b1f23);
+  --luxe-gradient-accent: linear-gradient(135deg, #111827, #374151);
+}
+
+.aem-theme-luxe * {
+  font-family: 'Google Sans', Roboto, sans-serif !important;
+}
+
+.aem-theme-luxe .aem-btn,
+.aem-theme-luxe button,
+.aem-theme-luxe .aem-btn-sm {
+  min-height: 40px !important;
+  border-radius: 10px !important;
+  background: var(--luxe-gradient-accent) !important;
+  color: var(--luxe-text) !important;
+  border: 1px solid var(--luxe-border) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.aem-theme-luxe .aem-btn:hover,
+.aem-theme-luxe button:hover,
+.aem-theme-luxe .aem-btn-sm:hover {
+  background: linear-gradient(135deg, #4b5563, #111827) !important;
+  transform: translateY(-1px) !important;
+}
+
+.aem-theme-luxe input,
+.aem-theme-luxe textarea,
+.aem-theme-luxe select {
+  background: var(--luxe-surface) !important;
+  color: var(--luxe-text) !important;
+  border: 1px solid var(--luxe-border) !important;
+  border-radius: 10px !important;
+}
+
+.aem-theme-luxe .aem-bulk-modal-overlay > div,
+.aem-theme-luxe #aem-templates-modal > div,
+.aem-theme-luxe #aem-analytics-modal > div,
+.aem-theme-luxe #aem-csv-import > div,
+.aem-theme-luxe #aem-followup-modal > div,
+.aem-theme-luxe #aem-followup-modal-edit > div,
+.aem-theme-luxe #aem-manual-followup > div {
+  background: var(--luxe-surface) !important;
+  color: var(--luxe-text) !important;
+  border: 1px solid var(--luxe-border) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.aem-theme-luxe .aem-section,
+.aem-theme-luxe #aem-variable-section {
+  background: var(--luxe-elev) !important;
+  border: 1px solid var(--luxe-border) !important;
+  border-radius: 12px !important;
+}
+
+.aem-theme-luxe .aem-chip,
+.aem-theme-luxe #aem-variable-chips button {
+  background: #111827 !important;
+  color: var(--luxe-text) !important;
+  border: 1px solid var(--luxe-border) !important;
+}
+
+.aem-theme-luxe h2, .aem-theme-luxe h3, .aem-theme-luxe label, .aem-theme-luxe p, .aem-theme-luxe span {
+  color: var(--luxe-text) !important;
+}
+
+.aem-theme-luxe .aem-divider {
+  height: 1px; background: var(--luxe-border) !important; width: 100%;
+}
+
+/* Sidebar Bulk Send entry */
+.aem-theme-luxe #aem-bulk-send-entry button#aem-bulk-send-btn {
+  background: var(--luxe-gradient-accent) !important;
+  color: var(--luxe-text) !important;
+  border: 1px solid var(--luxe-border) !important;
+}
+
+/* Analytics/preview boxes */
+.aem-theme-luxe .aem-preview-box,
+.aem-theme-luxe #aem-sheet-preview {
+  background: #0f1113 !important;
+  border-color: var(--luxe-border) !important;
+  color: var(--luxe-subtext) !important;
+}
+
+/* Force-override common inline backgrounds/borders inside luxe surfaces */
+.aem-theme-luxe [style*="background: white"],
+.aem-theme-luxe [style*="background:white"],
+.aem-theme-luxe [style*="background: #fff"],
+.aem-theme-luxe [style*="background:#fff"],
+.aem-theme-luxe [style*="background: #f8f9fa"],
+.aem-theme-luxe [style*="background:#f8f9fa"],
+.aem-theme-luxe [style*="background: #e8f0fe"],
+.aem-theme-luxe [style*="background:#e8f0fe"] {
+  background: var(--luxe-surface) !important;
+}
+.aem-theme-luxe [style*="border: 1px solid #dadce0"],
+.aem-theme-luxe [style*="border: 2px solid #dadce0"],
+.aem-theme-luxe [style*="border: 1px solid #e8eaed"],
+.aem-theme-luxe [style*="border: 2px solid #e8eaed"] {
+  border-color: var(--luxe-border) !important;
+}
+.aem-theme-luxe [style*="color: #202124"],
+.aem-theme-luxe [style*="color:#202124"],
+.aem-theme-luxe [style*="color: #5f6368"],
+.aem-theme-luxe [style*="color:#5f6368"] {
+  color: var(--luxe-text) !important;
+}
+
+/* Popup theming */
+.aem-popup.aem-theme-luxe {
+  background: var(--luxe-gradient) !important;
+  color: var(--luxe-text) !important;
+}
+.aem-popup .header,
+.aem-popup .content,
+.aem-popup .section,
+.aem-popup .reply-item,
+.aem-popup .followup-rule {
+  background: var(--luxe-surface) !important;
+  color: var(--luxe-text) !important;
+  border: 1px solid var(--luxe-border) !important;
+}
+.aem-popup button {
+  min-height: 40px !important;
+  border-radius: 10px !important;
+  background: var(--luxe-gradient-accent) !important;
+  color: var(--luxe-text) !important;
+  border: 1px solid var(--luxe-border) !important;
+}
+
+/* Options page theming */
+.aem-options.aem-theme-luxe {
+  background: var(--luxe-gradient) !important;
+  color: var(--luxe-text) !important;
+}
+.aem-options .tab,
+.aem-options .tab-content,
+.aem-options input,
+.aem-options textarea,
+.aem-options select,
+.aem-options button,
+.aem-options h1, .aem-options h2, .aem-options h3, .aem-options p, .aem-options label {
+  color: var(--luxe-text) !important;
+}
+.aem-options input,
+.aem-options textarea,
+.aem-options select {
+  background: var(--luxe-surface) !important;
+  border: 1px solid var(--luxe-border) !important;
+  border-radius: 10px !important;
+}
+.aem-options .tab.active {
+  border-bottom-color: var(--luxe-accent) !important;
+  color: var(--luxe-accent) !important;
+}
+.aem-options button {
+  background: var(--luxe-gradient-accent) !important;
+  border: 1px solid var(--luxe-border) !important;
+  border-radius: 10px !important;
+}
+
+/* Overlay panel */
+.aem-theme-luxe.aem-main-content-panel {
+  backdrop-filter: blur(4px);
+}
+
+/* Sidebar TaskForce tabs */
+.aem-theme-luxe.aem-gmail-tabs {
+  border-top: 1px solid var(--luxe-border) !important;
+}
+.aem-gmail-tabs .aem-tab-item {
+  border-radius: 10px !important;
+}
+.aem-gmail-tabs .aem-tab-item:hover {
+  background: #1b1f23 !important;
+}
+.aem-gmail-tabs .aem-tab-item.active {
+  background: #111827 !important;
+}
+
+/* Generic inputs/buttons in overlays */
+.aem-theme-luxe .aem-input {
+  min-height: 40px !important;
+}
+
 .aem-btn {
   padding: 10px 20px;
   background: linear-gradient(135deg, var(--primary), var(--primary-hover));
@@ -520,4 +715,3 @@
   box-shadow: none;
   transform: none;
 }
-

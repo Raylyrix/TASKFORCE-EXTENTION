@@ -1,0 +1,53 @@
+:root {
+  --bg: #0f1113;
+  --surface: #14171a;
+  --elev: #1b1f23;
+  --text: #eef0f2;
+  --muted: #c7c9cc;
+  --border: #2a2f35;
+  --accent: #e5e7eb;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: linear-gradient(135deg, var(--bg), #111317); color: var(--text); }
+
+.container { width: min(1120px, 92%); margin: 0 auto; }
+.btn { display:inline-block; padding: 12px 20px; border-radius: 10px; border: 1px solid var(--border); background: var(--elev); color: var(--text); text-decoration: none; font-weight: 600; }
+.btn.primary { background: linear-gradient(135deg, #374151, #111827); }
+.btn:hover { filter: brightness(1.05); }
+
+.tf-nav { position: sticky; top:0; z-index:10; background: rgba(15,17,19,0.8); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+.tf-nav .container { display:flex; align-items:center; justify-content:space-between; padding: 14px 0; }
+.tf-nav .brand { font-size: 18px; font-weight: 700; letter-spacing: 0.3px; }
+.tf-nav nav a { color: var(--text); text-decoration:none; margin-left: 16px; font-weight: 500; }
+
+.tf-hero { padding: 80px 0 64px; background: radial-gradient(80% 60% at 50% 0%, #111317 0%, transparent 70%); }
+.tf-hero h1 { margin:0 0 14px 0; font-size: 44px; line-height: 1.1; }
+.tf-hero p { margin:0 0 22px 0; color: var(--muted); font-size: 18px; }
+.tf-hero .cta .btn { margin-right: 10px; }
+
+.tf-features { padding: 48px 0; }
+.tf-features .grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.tf-features .card { background: var(--surface); border:1px solid var(--border); border-radius: 14px; padding: 20px; }
+.tf-features .card h3 { margin:0 0 8px 0; }
+.tf-features .card p { margin:0; color: var(--muted); }
+
+.tf-how { padding: 40px 0; background: var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.tf-how h2 { margin:0 0 12px 0; }
+.tf-how ol { margin:0; padding-left: 18px; color: var(--muted); }
+.tf-how li { margin: 6px 0; }
+
+.tf-download { padding: 48px 0; }
+.tf-download h2 { margin:0 0 8px 0; }
+.tf-download p { margin:0 0 18px 0; color: var(--muted); }
+
+.tf-footer { padding: 18px 0; border-top:1px solid var(--border); background: var(--surface); }
+.tf-footer .container { display:flex; align-items:center; justify-content:space-between; }
+.tf-footer nav a { color: var(--muted); text-decoration:none; margin-left:12px; }
+
+@media (max-width: 800px) {
+  .tf-features .grid { grid-template-columns: 1fr; }
+  .tf-hero h1 { font-size: 34px; }
+}
+

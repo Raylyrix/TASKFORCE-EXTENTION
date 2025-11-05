@@ -19,7 +19,10 @@
     "https://calendar.google.com/*",
     "https://api-inference.huggingface.co/*",
     "https://people.googleapis.com/*",
-    "https://oauth2.googleapis.com/*"
+    "https://oauth2.googleapis.com/*",
+    "https://*.onrender.com/*",
+    "https://your-backend.herokuapp.com/*",
+    "http://localhost:3000/*"
   ],
   
   "background": {

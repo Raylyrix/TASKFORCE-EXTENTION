@@ -15,11 +15,17 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
 
 app.use(cors({
   origin: (origin, callback) => {
+    // Always allow Chrome extension origins
+    if (origin && /^chrome-extension:\/\//i.test(origin)) return callback(null, true);
+    // If no explicit allowlist, allow any origin (reflects request origin)
     if (!origin || allowedOrigins.length === 0) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('Not allowed by CORS'));
-  }
+  },
 }));
+
+// Preflight support
+app.options('*', cors());
 app.use(express.json());
 // Basic security headers
 app.use((req, res, next) => {
@@ -125,6 +131,80 @@ async function initDatabase() {
           NULL;
         END;
       END$$;
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        BEGIN
+          ALTER TABLE scheduled_emails ADD COLUMN message_id VARCHAR(128);
+        EXCEPTION WHEN duplicate_column THEN
+          NULL;
+        END;
+      END$$;
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_scheduled_emails_message_id
+      ON scheduled_emails(message_id)
+      WHERE message_id IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tracked_emails (
+        message_id VARCHAR(128) PRIMARY KEY,
+        opens INTEGER DEFAULT 0,
+        clicks INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tracked_clicks (
+        id SERIAL PRIMARY KEY,
+        message_id VARCHAR(128) REFERENCES tracked_emails(message_id) ON DELETE CASCADE,
+        url TEXT,
+        clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS availability_pools (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        token VARCHAR(128) UNIQUE,
+        title TEXT,
+        duration_min INTEGER DEFAULT 30,
+        days_ahead INTEGER DEFAULT 14,
+        window_start VARCHAR(5) DEFAULT '09:00',
+        window_end VARCHAR(5) DEFAULT '17:00',
+        timezone VARCHAR(64) DEFAULT 'UTC',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS availability_slots (
+        id SERIAL PRIMARY KEY,
+        pool_id INTEGER REFERENCES availability_pools(id) ON DELETE CASCADE,
+        start_ts TIMESTAMP NOT NULL,
+        end_ts TIMESTAMP NOT NULL,
+        status VARCHAR(16) DEFAULT 'free',
+        booked_by_email VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bookings (
+        id SERIAL PRIMARY KEY,
+        pool_id INTEGER REFERENCES availability_pools(id) ON DELETE CASCADE,
+        slot_id INTEGER REFERENCES availability_slots(id) ON DELETE CASCADE,
+        recipient_email VARCHAR(255) NOT NULL,
+        meet_link TEXT,
+        status VARCHAR(16) DEFAULT 'confirmed',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
 
     console.log('✅ Database initialized successfully');
@@ -690,10 +770,18 @@ async function sendEmail(emailRecord) {
         }
       }
       
+      // Ensure message_id and inject tracking
+      let messageId = emailRecord.message_id;
+      if (!messageId) {
+        messageId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+        try { await pool.query('UPDATE scheduled_emails SET message_id = $1 WHERE id = $2', [messageId, emailRecord.id]); } catch (_) {}
+      }
+      const trackedBody = injectTracking(emailRecord.body, messageId);
+
       const raw = createRawEmail(
         emailRecord.to_email,
         emailRecord.subject,
-        emailRecord.body,
+        trackedBody,
         cc,
         bcc,
         attachments
@@ -775,6 +863,79 @@ async function sendEmail(emailRecord) {
   }
 }
 
+// Build public base URL for tracking links
+function getPublicBaseUrl() {
+  const url = (process.env.BACKEND_PUBLIC_URL || '').toString().trim();
+  if (!url) return '';
+  return url.replace(/\/$/, '');
+}
+
+// Inject tracking pixel and wrap links through backend redirects
+function injectTracking(html, messageId) {
+  try {
+    html = appendWatermarkServer(html);
+    const base = getPublicBaseUrl();
+    if (!base) return html;
+    const replaced = html.replace(/href=\"(https?:\/\/[^\"]+)\"/gi, (m, url) => {
+      try {
+        const wrapped = `${base}/t/c?m=${encodeURIComponent(messageId)}&u=${encodeURIComponent(url)}`;
+        return `href="${wrapped}"`;
+      } catch (_) { return m; }
+    });
+    const pixel = `<img src="${base}/t/o?m=${encodeURIComponent(messageId)}" width="1" height="1" style="display:none;"/>`;
+    if (replaced.includes('/t/o?m=')) return replaced;
+    return replaced + `\n${pixel}`;
+  } catch (_) {
+    return html;
+  }
+}
+
+function appendWatermarkServer(html) {
+  try {
+    if (typeof html !== 'string') return html;
+    if (html.toLowerCase().includes('taskforce automated mailer')) return html;
+    const footer = `\n<div style="margin-top:16px;font-size:11px;line-height:1.3;color:#5f6368;">Sent using <strong>TaskForce Automated Mailer</strong></div>`;
+    return html + footer;
+  } catch (_) {
+    return html;
+  }
+}
+
+// Tracking endpoints
+app.get('/t/o', async (req, res) => {
+  try {
+    const m = (req.query.m || '').toString();
+    if (m) {
+      await pool.query('INSERT INTO tracked_emails(message_id, opens, clicks) VALUES ($1, 1, 0) ON CONFLICT (message_id) DO UPDATE SET opens = tracked_emails.opens + 1', [m]);
+    }
+  } catch (_) {}
+  // Return 1x1 transparent GIF
+  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
+  res.setHeader('Content-Type', 'image/gif');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.end(gif);
+});
+
+app.get('/t/c', async (req, res) => {
+  const m = (req.query.m || '').toString();
+  const u = (req.query.u || '').toString();
+  try {
+    if (m) await pool.query('INSERT INTO tracked_emails(message_id, opens, clicks) VALUES ($1, 0, 1) ON CONFLICT (message_id) DO UPDATE SET clicks = tracked_emails.clicks + 1', [m]);
+    if (m && u) await pool.query('INSERT INTO tracked_clicks(message_id, url) VALUES ($1, $2)', [m, u]);
+  } catch (_) {}
+  // Redirect to original URL
+  try {
+    const target = decodeURIComponent(u);
+    if (target && /^https?:\/\//i.test(target)) {
+      res.redirect(target);
+      return;
+    }
+  } catch (_) {}
+  res.status(400).send('Invalid URL');
+});
+
 // ============================================
 // CRON JOB - CHECK FOR DUE EMAILS
 // ============================================
@@ -842,3 +1003,105 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
+// Create availability pool and generate slots
+app.post('/api/availability/create', async (req, res) => {
+  try {
+    const { userId, title, durationMin = 30, daysAhead = 14, windowStart = '09:00', windowEnd = '17:00', timezone = 'UTC' } = req.body || {};
+    if (!Number.isInteger(userId)) return res.status(400).json({ error: 'userId required' });
+    const token = crypto.randomBytes(12).toString('hex');
+    const inserted = await pool.query(`INSERT INTO availability_pools (user_id, token, title, duration_min, days_ahead, window_start, window_end, timezone) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, [userId, token, title||'Meeting', durationMin, daysAhead, windowStart, windowEnd, timezone]);
+    const poolId = inserted.rows[0].id;
+    // Generate naive slots without reading busy events (frontend guards conflicts)
+    const now = new Date();
+    for (let d=0; d<daysAhead; d++) {
+      const day = new Date(now.getFullYear(), now.getMonth(), now.getDate()+d);
+      const [sh, sm] = windowStart.split(':').map(n=>parseInt(n,10));
+      const [eh, em] = windowEnd.split(':').map(n=>parseInt(n,10));
+      let cur = new Date(day.getFullYear(), day.getMonth(), day.getDate(), sh, sm, 0);
+      const endDay = new Date(day.getFullYear(), day.getMonth(), day.getDate(), eh, em, 0);
+      while (cur < endDay) {
+        const end = new Date(cur.getTime()+ (parseInt(durationMin,10)||30)*60*1000);
+        if (end> endDay) break;
+        if (end > now) {
+          await pool.query('INSERT INTO availability_slots (pool_id, start_ts, end_ts) VALUES ($1,$2,$3)', [poolId, cur, end]);
+        }
+        cur = end;
+      }
+    }
+    const publicBase = getBackendPublicUrl(req);
+    const bookingUrl = `${publicBase}/book/${token}`;
+    res.json({ success:true, poolId, token, bookingUrl });
+  } catch (e) {
+    console.error('availability create error', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Booking page (minimal)
+app.get('/book/:token', async (req, res) => {
+  try {
+    const token = req.params.token;
+    const pool = await pool.query('SELECT * FROM availability_pools WHERE token=$1', [token]);
+    if (pool.rows.length===0) return res.status(404).send('Not found');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Book a Meeting</title>
+    <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0f1113;color:#e5e7eb;margin:0;padding:0} .wrap{max-width:720px;margin:0 auto;padding:24px} .card{background:#14171a;border:1px solid #2a2f35;border-radius:12px;padding:16px} .slot{display:inline-block;margin:6px} .slot button{padding:8px 12px;border-radius:8px;border:1px solid #2a2f35;background:#1b1f23;color:#e5e7eb;cursor:pointer} .slot button:hover{filter:brightness(1.1)} input,button{font-size:14px}</style></head><body><div class="wrap"><h2>Book a meeting${pool.rows[0].title? ' – '+pool.rows[0].title:''}</h2><div class="card"><div id="slots">Loading...</div><div style="margin-top:12px"><input id="email" type="email" placeholder="Your email" style="padding:8px;border-radius:8px;border:1px solid #2a2f35;background:#0f1113;color:#e5e7eb"> <button id="confirm" disabled>Confirm</button></div><div id="msg" style="margin-top:10px;color:#9ca3af"></div></div></div><script>(function(){const token='${token}';let selected=null;function fmt(s){return new Date(s).toLocaleString();}fetch('/api/book/slots?token='+token).then(r=>r.json()).then(j=>{if(!j.success){document.getElementById('slots').textContent='Failed to load slots';return;}const box=document.getElementById('slots');box.innerHTML=j.slots.map(s=>`<span class=slot><button data-id="${s.id}">${fmt(s.start)} (${s.duration}m)</button></span>`).join('');box.querySelectorAll('button').forEach(b=>b.onclick=()=>{selected=b.getAttribute('data-id');document.getElementById('confirm').disabled=false;});});document.getElementById('confirm').onclick=function(){const email=document.getElementById('email').value;if(!email||!selected){alert('Pick a slot and enter email');return;}fetch('/api/book/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,slotId:selected,email})}).then(r=>r.json()).then(j=>{if(!j.success){document.getElementById('msg').textContent=j.error||'Failed';return;}document.getElementById('msg').textContent='Booked! Meet link: '+(j.meetLink||'');});};})();</script></body></html>`;
+    res.send(html);
+  } catch (e) { res.status(500).send('Error'); }
+});
+
+app.get('/api/book/slots', async (req,res) => {
+  try {
+    const token = (req.query.token||'').toString();
+    const p = await pool.query('SELECT id,duration_min FROM availability_pools WHERE token=$1', [token]);
+    if (p.rows.length===0) return res.json({ success:false, error:'Invalid' });
+    const pid = p.rows[0].id; const dur = p.rows[0].duration_min;
+    const rows = await pool.query('SELECT id, start_ts, end_ts, status FROM availability_slots WHERE pool_id=$1 AND status=$2 ORDER BY start_ts ASC LIMIT 200', [pid,'free']);
+    res.json({ success:true, slots: rows.rows.map(r=>({ id: r.id, start: r.start_ts, end: r.end_ts, duration: dur })) });
+  } catch (e) { res.json({ success:false, error:e.message }); }
+});
+
+app.post('/api/book/confirm', async (req,res) => {
+  const client = await pool.connect();
+  try {
+    const { token, slotId, email } = req.body || {};
+    if (!token || !slotId || !validateEmailAddress(email)) return res.json({ success:false, error:'Invalid' });
+    await client.query('BEGIN');
+    const p = await client.query('SELECT id, user_id, title, duration_min FROM availability_pools WHERE token=$1 FOR UPDATE', [token]);
+    if (p.rows.length===0) throw new Error('Invalid token');
+    const poolId = p.rows[0].id;
+    const s = await client.query("UPDATE availability_slots SET status='booked', booked_by_email=$1 WHERE id=$2 AND pool_id=$3 AND status='free' RETURNING start_ts, end_ts", [email, slotId, poolId]);
+    if (s.rows.length===0) { await client.query('ROLLBACK'); return res.json({ success:false, error:'Slot already booked' }); }
+    // Create Meet event for host (user)
+    const user = await client.query('SELECT refresh_token,email FROM users WHERE id=$1', [p.rows[0].user_id]);
+    const accessToken = await getAccessTokenFromRefresh(user.rows[0].refresh_token);
+    const start = new Date(s.rows[0].start_ts).toISOString();
+    const end = new Date(s.rows[0].end_ts).toISOString();
+    const event = {
+      summary: p.rows[0].title || 'Meeting',
+      start: { dateTime: start },
+      end: { dateTime: end },
+      attendees: [{ email }],
+      conferenceData: { createRequest: { requestId: `${Date.now()}_${Math.random().toString(36).slice(2,8)}`, conferenceSolutionKey: { type: 'hangoutsMeet' } } }
+    };
+    const ev = await axios.post('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', event, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const conf = ev.data?.conferenceData?.entryPoints?.find(e=>e.entryPointType==='video')?.uri || ev.data?.hangoutLink || '';
+    await client.query('INSERT INTO bookings (pool_id, slot_id, recipient_email, meet_link) VALUES ($1,$2,$3,$4)', [poolId, slotId, email, conf]);
+    await client.query('COMMIT');
+    res.json({ success:true, meetLink: conf, start, end });
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch(_){}
+    console.error('booking error', e.response?.data || e.message);
+    res.json({ success:false, error: e.message });
+  } finally { client.release(); }
+});
+
+async function getAccessTokenFromRefresh(encRefresh) {
+  const refreshToken = decrypt(encRefresh);
+  const resp = await axios.post('https://oauth2.googleapis.com/token', {
+    client_id: process.env.GOOGLE_CLIENT_ID,
+    client_secret: process.env.GOOGLE_CLIENT_SECRET,
+    refresh_token: refreshToken,
+    grant_type: 'refresh_token'
+  });
+  return resp.data.access_token;
+}

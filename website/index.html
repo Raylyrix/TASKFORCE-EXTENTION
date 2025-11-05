@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TaskForce – Automated Email Manager</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <header class="tf-nav">
+      <div class="container">
+        <div class="brand">TaskForce</div>
+        <nav>
+          <a href="#features">Features</a>
+          <a href="#how">How It Works</a>
+          <a href="#download" class="btn">Get TaskForce</a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="tf-hero">
+      <div class="container">
+        <h1>Automate Gmail. Send Smarter. Close Faster.</h1>
+        <p>TaskForce adds scheduling, bulk send with personalization, automated follow‑ups, tracking, and calendar+Meet integration — right inside Gmail.</p>
+        <div class="cta">
+          <a id="add-to-chrome-hero" class="btn primary" href="#download">Add to Chrome</a>
+          <a class="btn" href="#features">Explore Features</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="tf-features container">
+      <div class="grid">
+        <div class="card">
+          <h3>Bulk Send + Variables</h3>
+          <p>Import from Google Sheets and personalize with {{name}}, {{company}}, and more. Rate‑limit and schedule with ease.</p>
+        </div>
+        <div class="card">
+          <h3>Automated Follow‑ups</h3>
+          <p>Rules by labels and Gmail queries. Pause on reply. Build sequences that work while you sleep.</p>
+        </div>
+        <div class="card">
+          <h3>Tracking + Analytics</h3>
+          <p>Opens, clicks, trends and engagement — get the signal you need without the noise.</p>
+        </div>
+        <div class="card">
+          <h3>Calendar + Meet</h3>
+          <p>Create Google Calendar events with Meet links for each recipient and drop them into your emails.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="how" class="tf-how">
+      <div class="container">
+        <h2>How It Works</h2>
+        <ol>
+          <li>Load the extension in Chrome (Developer mode → Load unpacked).</li>
+          <li>Authenticate with Google; grant Gmail, Calendar and Sheets access.</li>
+          <li>Open Gmail and use the TaskForce sidebar to compose and automate.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="download" class="tf-download">
+      <div class="container">
+        <h2>Get TaskForce</h2>
+        <p>The easiest and safest way to install a Chrome extension is via the Chrome Web Store.</p>
+        <div class="cta" style="margin-bottom:12px;">
+          <!-- Replace EXTENSION_ID with your published Web Store ID -->
+          <a id="add-to-chrome" class="btn primary" href="https://chrome.google.com/webstore/detail/taskforce-automated-mailer/EXTENSION_ID" target="_blank" rel="noopener">Add to Chrome</a>
+        </div>
+        <p id="dev-install-note" style="color:#c7c9cc; font-size:14px;">Not published yet? Use the developer install below.</p>
+        <div class="cta">
+          <a class="btn" href="../" download>Download ZIP</a>
+          <a class="btn" href="../README.md">Developer Install Guide</a>
+        </div>
+        <p style="margin-top:12px; color:#c7c9cc; font-size:13px;">Note: Chrome removed inline installation from websites. Direct, 1‑click installation requires a public Chrome Web Store listing. For managed (enterprise) setups, use extension policies to deploy a CRX.</p>
+      </div>
+    </section>
+
+    <footer class="tf-footer">
+      <div class="container">
+        <span>© <span id="year"></span> TaskForce</span>
+        <nav>
+          <a href="../PRIVACY.md">Privacy</a>
+          <a href="../README.md">Docs</a>
+          <a href="#download">Download</a>
+        </nav>
+      </div>
+    </footer>
+
+    <script>
+      document.getElementById('year').textContent = new Date().getFullYear();
+      // If the Web Store ID placeholder hasn't been replaced, keep user on page and show developer path.
+      (function(){
+        var link = document.getElementById('add-to-chrome');
+        if (!link) return;
+        if (link.href.indexOf('EXTENSION_ID') !== -1) {
+          link.addEventListener('click', function(e){ e.preventDefault(); alert('Web Store link not set yet. Use the Developer Install options below, or replace EXTENSION_ID with your published Web Store ID.'); });
+        }
+        var hero = document.getElementById('add-to-chrome-hero');
+        if (hero) hero.href = link.href;
+      })();
+    </script>
+  </body>
+  </html>

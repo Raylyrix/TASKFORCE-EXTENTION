@@ -40,9 +40,69 @@ function injectEmailManagerUI() {
     
     // Add notification that extension is active
     showExtensionActiveNotification();
+    // Command palette
+    initCommandPalette();
     
     console.log('TaskForce Email Manager: UI injection complete');
   }, 1000);
+}
+
+// Command palette (Ctrl/Cmd+K)
+function initCommandPalette() {
+  if (window.__aem_cmd_palette) return; // once
+  window.__aem_cmd_palette = true;
+  document.addEventListener('keydown', (e) => {
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC')>=0;
+    if ((isMac && e.metaKey && e.key.toLowerCase()==='k') || (!isMac && e.ctrlKey && e.key.toLowerCase()==='k')) {
+      e.preventDefault();
+      showCommandPalette();
+    }
+  }, true);
+}
+
+function showCommandPalette() {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:2147483647;display:flex;align-items:flex-start;justify-content:center;padding-top:10vh;';
+  const box = document.createElement('div');
+  box.style.cssText = 'width: min(720px, 90%); background:#fff; border:1px solid #dadce0; border-radius:8px; box-shadow:0 16px 48px rgba(0,0,0,0.2);';
+  box.innerHTML = `
+    <div style="padding:8px 12px; border-bottom:1px solid #dadce0; font-weight:600;">TaskForce – Command Palette</div>
+    <div style="padding:12px; display:grid; gap:8px;">
+      <button data-cmd="bulk" style="text-align:left;padding:10px;border:1px solid #dadce0;border-radius:6px;background:#fff;cursor:pointer;">Open Bulk Composer</button>
+      <button data-cmd="availability" style="text-align:left;padding:10px;border:1px solid #dadce0;border-radius:6px;background:#fff;cursor:pointer;">Insert Availability (next 14 days)</button>
+      <button data-cmd="templates" style="text-align:left;padding:10px;border:1px solid #dadce0;border-radius:6px;background:#fff;cursor:pointer;">Manage Templates</button>
+      <button data-cmd="analytics" style="text-align:left;padding:10px;border:1px solid #dadce0;border-radius:6px;background:#fff;cursor:pointer;">Open Analytics</button>
+    </div>`;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target===overlay) overlay.remove(); });
+  box.querySelectorAll('button[data-cmd]')?.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const cmd = btn.getAttribute('data-cmd');
+      overlay.remove();
+      if (cmd==='bulk') { showBulkComposerModal(); return; }
+      if (cmd==='templates') { const cc = document.querySelector('[role="dialog"]'); cc? showTemplatesModal(cc): showComposeRequiredNotification('Open a compose window to manage templates.'); return; }
+      if (cmd==='analytics') { showAnalyticsModal(); return; }
+      if (cmd==='availability') {
+        try {
+          const resp = await new Promise((resolve)=> chrome.runtime.sendMessage({ action:'generateAvailabilitySlots', daysAhead:14, windowStart:'09:00', windowEnd:'17:00', slotMinutes:30, gapMinutes:0 }, resolve));
+          if (!resp || !resp.success) { alert('Could not generate availability'); return; }
+          const slots = (resp.slots||[]).slice(0, 10);
+          if (slots.length===0) { alert('No free slots found'); return; }
+          const compose = document.querySelector('[role="dialog"]');
+          if (!compose) { showComposeRequiredNotification('Open a compose window first.'); return; }
+          const bodyEl = compose.querySelector('[contenteditable="true"][g_editable="true"]');
+          if (!bodyEl) { showComposeRequiredNotification('Open a compose window first.'); return; }
+          const list = slots.map(s=>{
+            const dt = new Date(s.start);
+            return `${dt.toLocaleString()} – <a href="https://calendar.google.com/calendar/u/0/r/eventedit?dates=${s.start.replace(/[-:]/g,'').split('.')[0].replace('T','/').replace('Z','Z')}/${s.end.replace(/[-:]/g,'').split('.')[0].replace('T','/').replace('Z','Z')}&text=Meeting&location=Google+Meet&details=Suggested+slot">Pick this time</a>`;
+          }).join('<br>');
+          bodyEl.focus();
+          document.execCommand('insertHTML', false, `<div><br><strong>My availability:</strong><br>${list}</div>`);
+        } catch (_) { alert('Failed to insert availability'); }
+      }
+    });
+  });
 }
 
 // Show notification that extension is active
@@ -94,7 +154,7 @@ function addGmailSidebar() {
   
   // Create TaskForce section
   const taskforceSection = document.createElement('div');
-  taskforceSection.className = 'aem-gmail-tabs';
+  taskforceSection.className = 'aem-gmail-tabs aem-theme-luxe';
   taskforceSection.style.cssText = 'margin-top: 20px; padding: 12px 8px; border-top: 1px solid #dadce0;';
   
   taskforceSection.innerHTML = `
@@ -194,18 +254,41 @@ function showBulkComposerModal() {
 
   const modal = document.createElement('div');
   modal.style.cssText = `
-    width: 90%; max-width: 760px; max-height: 90vh; overflow: auto; background: #fff; border-radius: 12px; padding: 20px;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.25); font-family: 'Google Sans', Roboto, Arial, sans-serif;`;
+    width: 600px; max-width: 90%; max-height: 90vh; overflow: hidden; background: #fff; border: 1px solid #dadce0; border-radius: 8px; padding: 0;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2); font-family: Roboto, Arial, sans-serif;`;
 
   modal.innerHTML = `
-    <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom:12px;">
-      <h3 style="margin:0; font-size:18px; color:#1a73e8;">Bulk Composer</h3>
-      <button id="aem-close-composer" style="border:none;background:#eef2ff;color:#1a73e8;border-radius:8px;padding:6px 10px;cursor:pointer;">Close</button>
+    <div style="display:flex; justify-content: space-between; align-items:center; padding:8px 12px; border-bottom:1px solid #dadce0; background:#fff;">
+      <h3 style="margin:0; font-size:16px; color:#202124; font-weight:500;">Bulk Composer</h3>
+      <button id="aem-close-composer" title="Close" style="border:none;background:transparent;color:#5f6368;border-radius:4px;padding:6px 8px;cursor:pointer;">✕</button>
     </div>
-    <div style="display:grid; gap:10px;">
-      <textarea id="aem-bulk-recipients" placeholder="Recipients (one email per line or comma-separated)" style="width:100%; min-height:90px; border:1px solid #dadce0; border-radius:8px; padding:10px; font-size:13px;"></textarea>
-      <input id="aem-bulk-subject" placeholder="Subject" style="width:100%; border:1px solid #dadce0; border-radius:8px; padding:10px; font-size:13px;" />
-      <textarea id="aem-bulk-body" placeholder="Message (HTML allowed)" style="width:100%; min-height:160px; border:1px solid #dadce0; border-radius:8px; padding:10px; font-size:13px;"></textarea>
+    <div style="display:grid; gap:10px; padding:12px; background:#fff; max-height: calc(90vh - 56px); overflow-y: auto;">
+      <textarea id="aem-bulk-recipients" placeholder="Recipients (one email per line or comma-separated)" style="width:100%; min-height:90px; border:1px solid #dadce0; border-radius:4px; padding:10px; font-size:13px; background:#fff; color:#202124;"></textarea>
+      <input id="aem-bulk-subject" placeholder="Subject" style="width:100%; border:1px solid #dadce0; border-radius:4px; padding:10px; font-size:13px; background:#fff; color:#202124;" />
+      <textarea id="aem-bulk-body" placeholder="Message (HTML allowed)" style="width:100%; min-height:160px; border:1px solid #dadce0; border-radius:4px; padding:10px; font-size:13px; background:#fff; color:#202124;"></textarea>
+      <div style="border:1px solid #dadce0; border-radius:4px; padding:12px; background:#fff;">
+        <div style="font-weight:600; color:#202124; margin-bottom:8px;">Import Recipients from Google Sheets (optional)</div>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+          <input id="aem-sheets-url" type="text" placeholder="Google Sheets URL (accessible to your account)" style="flex:1; border:1px solid #dadce0; border-radius:6px; padding:8px; font-size:13px;" />
+          <button id="aem-load-sheets" style="padding:8px 12px; border:none; border-radius:6px; background:#1a73e8; color:#fff; cursor:pointer;">Load Sheet</button>
+          <button id="aem-clear-sheets" style="display:none; padding:8px 12px; border:1px solid #dadce0; border-radius:6px; background:#fff; color:#202124; cursor:pointer;">Clear</button>
+        </div>
+        <div id="aem-sheets-mapping" style="display:none; margin-bottom:8px;">
+          <label style="font-size:12px; color:#5f6368; margin-right:8px;">Email column:</label>
+          <select id="aem-email-column" style="border:1px solid #dadce0; border-radius:4px; padding:6px; font-size:12px; background:#fff; color:#202124;"></select>
+          <span style="font-size:12px; color:#5f6368; margin-left:12px;">Use {{name}}, {{company}} in subject/body</span>
+        </div>
+        <div id="aem-sheet-preview" style="display:none; font-size:12px; color:#202124; background:#fff; border:1px solid #dadce0; border-radius:4px; padding:8px; max-height:160px; overflow:auto;"></div>
+      </div>
+      <div style="border:1px solid #dadce0; border-radius:4px; padding:12px; background:#fff;">
+        <div style="font-weight:600; color:#202124; margin-bottom:8px;">Google Meet / Calendar (optional)</div>
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px;"><input type="checkbox" id="aem-meet-create"> <span style="font-size:13px;color:#202124;">Create Google Calendar event(s) with Meet link</span></label>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+          <input id="aem-meet-title" placeholder="Event title (e.g. Meeting with {{email}})" style="border:1px solid #dadce0; border-radius:4px; padding:8px; font-size:13px; background:#fff; color:#202124;" />
+          <input id="aem-meet-duration" type="number" min="15" step="15" value="30" placeholder="Duration (min)" style="border:1px solid #dadce0; border-radius:4px; padding:8px; font-size:13px; background:#fff; color:#202124;" />
+        </div>
+        <div style="font-size:12px; color:#5f6368; margin-top:6px;">Uses Bulk start time if set; otherwise schedules ~1 hour from now. Insert {{meet_link}} in your message to place the link inline.</div>
+      </div>
       <div>
         <label style="font-size:12px; color:#5f6368; font-weight:600;">Attachments</label>
         <input id="aem-file-input" type="file" multiple style="display:block; margin-top:6px;" />
@@ -213,12 +296,12 @@ function showBulkComposerModal() {
         <div style="font-size:11px;color:#5f6368;margin-top:6px;">Max 10 files, total ≤ 10MB</div>
       </div>
       <div style="display:flex; gap:10px;">
-        <input id="aem-start-time" type="datetime-local" style="flex:1; border:1px solid #dadce0; border-radius:8px; padding:8px;" />
-        <input id="aem-delay-ms" type="number" min="0" placeholder="Delay between emails (ms)" style="width:220px; border:1px solid #dadce0; border-radius:8px; padding:8px;" />
+        <input id="aem-start-time" type="datetime-local" style="flex:1; border:1px solid #dadce0; border-radius:4px; padding:8px; background:#fff; color:#202124;" />
+        <input id="aem-delay-ms" type="number" min="0" placeholder="Delay between emails (ms)" style="width:220px; border:1px solid #dadce0; border-radius:4px; padding:8px; background:#fff; color:#202124;" />
       </div>
       <div style="display:flex; gap:10px; justify-content:flex-end;">
-        <button id="aem-send-now" style="padding:10px 14px; border:none; border-radius:8px; background:#1a73e8; color:#fff; cursor:pointer;">Send Now</button>
-        <button id="aem-schedule" style="padding:10px 14px; border:none; border-radius:8px; background:#34a853; color:#fff; cursor:pointer;">Schedule</button>
+        <button id="aem-send-now" style="padding:8px 14px; border:none; border-radius:4px; background:#1a73e8; color:#fff; cursor:pointer; min-width:96px;">Send</button>
+        <button id="aem-schedule" style="padding:8px 14px; border:1px solid #dadce0; border-radius:4px; background:#fff; color:#202124; cursor:pointer; min-width:96px;">Schedule</button>
       </div>
     </div>
   `;
@@ -232,6 +315,77 @@ function showBulkComposerModal() {
   const attachList = modal.querySelector('#aem-attach-list');
   const fileInput = modal.querySelector('#aem-file-input');
   const selected = [];
+  let sheetRows = [];
+  let sheetHeaders = [];
+  let lastFocus = 'body';
+  const subjEl = modal.querySelector('#aem-bulk-subject');
+  const bodyEl = modal.querySelector('#aem-bulk-body');
+  subjEl.addEventListener('focus', () => { lastFocus = 'subject'; });
+  bodyEl.addEventListener('focus', () => { lastFocus = 'body'; });
+
+  // Insert variable section dynamically after sheet preview block
+  try {
+    const previewBlock = modal.querySelector('#aem-sheet-preview');
+    if (previewBlock) {
+      const section = document.createElement('div');
+      section.id = 'aem-variable-section';
+      section.style.cssText = 'border:1px solid #e8eaed; border-radius:8px; padding:12px; background:#f7f7f8;';
+      section.innerHTML = `
+        <div style="font-weight:600; color:#202124; margin-bottom:8px;">Insert Variables</div>
+        <div id="aem-variable-chips" style="display:flex; flex-wrap:wrap; gap:8px;"><span style="font-size:12px; color:#5f6368;">Load a sheet to see available variables.</span></div>
+      `;
+      previewBlock.parentElement.insertAdjacentElement('afterend', section);
+    }
+  } catch (_) {}
+
+  function renderVariableChips() {
+    try {
+      const chips = modal.querySelector('#aem-variable-chips');
+      if (!chips) return;
+      chips.innerHTML = '';
+      if (!sheetHeaders || sheetHeaders.length === 0) {
+        chips.innerHTML = '<span style="font-size:12px; color:#5f6368;">Load a sheet to see available variables.</span>';
+        return;
+      }
+      sheetHeaders.forEach((h) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = `{{${h}}}`;
+        btn.style.cssText = 'padding:6px 10px; border:1px solid #dadce0; border-radius:16px; background:#fff; cursor:pointer; font-size:12px;';
+        btn.addEventListener('click', () => {
+          const token = `{{${h}}}`;
+          const target = (lastFocus === 'subject') ? subjEl : bodyEl;
+          insertAtCursor(target, token);
+        });
+        chips.appendChild(btn);
+      });
+    } catch (_) {}
+  }
+
+  function insertAtCursor(el, text) {
+    try {
+      if (!el) return;
+      const start = el.selectionStart ?? el.value.length;
+      const end = el.selectionEnd ?? el.value.length;
+      const before = el.value.substring(0, start);
+      const after = el.value.substring(end);
+      el.value = before + text + after;
+      const pos = start + text.length;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    } catch (_) {
+      el.value += text;
+    }
+  }
+
+  function setSheetsLoadedUI(loaded) {
+    const mapping = modal.querySelector('#aem-sheets-mapping');
+    const preview = modal.querySelector('#aem-sheet-preview');
+    const clearBtn = modal.querySelector('#aem-clear-sheets');
+    mapping.style.display = loaded ? 'block' : 'none';
+    preview.style.display = loaded ? 'block' : 'none';
+    clearBtn.style.display = loaded ? 'inline-block' : 'none';
+  }
 
   function refreshAttachList() {
     attachList.innerHTML = '';
@@ -276,6 +430,91 @@ function showBulkComposerModal() {
     fileInput.value = '';
   });
 
+  // Sheets helpers and events
+  function extractSheetId(url) {
+    try {
+      const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      return m ? m[1] : null;
+    } catch (_) { return null; }
+  }
+
+  function renderSheetPreview() {
+    const preview = modal.querySelector('#aem-sheet-preview');
+    const emailCol = (modal.querySelector('#aem-email-column')?.value || 'email');
+    const rows = sheetRows.slice(0, 10).map((r, i) => {
+      const email = r[emailCol] || '';
+      const rest = sheetHeaders.filter(h => h !== emailCol).slice(0, 3).map(h => `${h}: ${r[h] || ''}`).join(' • ');
+      return `<div style="padding:4px 0; border-bottom:1px solid #f1f3f4;"><strong>${i+1}.</strong> ${email} <span style=\"color:#5f6368;\">${rest}</span></div>`;
+    }).join('');
+    const extra = sheetRows.length > 10 ? `<div style=\"color:#5f6368; font-style:italic; padding-top:4px;\">... and ${sheetRows.length - 10} more</div>` : '';
+    preview.innerHTML = rows + extra;
+  }
+
+  function populateEmailColumnOptions(headers) {
+    const sel = modal.querySelector('#aem-email-column');
+    sel.innerHTML = '';
+    headers.forEach(h => {
+      const opt = document.createElement('option');
+      opt.value = h;
+      opt.textContent = h;
+      if (h.toLowerCase() === 'email') opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', renderSheetPreview);
+  }
+
+  modal.querySelector('#aem-load-sheets')?.addEventListener('click', () => {
+    const url = (modal.querySelector('#aem-sheets-url').value || '').trim();
+    const sheetId = extractSheetId(url);
+    if (!sheetId) {
+      alert('Invalid Google Sheets URL');
+      return;
+    }
+    const btn = modal.querySelector('#aem-load-sheets');
+    const original = btn.textContent;
+    btn.textContent = 'Loading...';
+    btn.disabled = true;
+    chrome.runtime.sendMessage({ action: 'fetchSheetsData', sheetId }, (response) => {
+      btn.textContent = original;
+      btn.disabled = false;
+      if (!response || !response.success) {
+        alert('Failed to load sheet: ' + (response?.error || 'Unknown error'));
+        return;
+      }
+      const data = response.data || [];
+      if (!Array.isArray(data) || data.length === 0) {
+        alert('No rows found in sheet');
+        return;
+      }
+      sheetRows = data.map(r => {
+        const o = {};
+        Object.keys(r).forEach(k => { o[k.toLowerCase().trim()] = r[k]; });
+        return o;
+      });
+      sheetHeaders = Array.from(new Set(sheetRows.flatMap(r => Object.keys(r))));
+      populateEmailColumnOptions(sheetHeaders);
+      setSheetsLoadedUI(true);
+      renderSheetPreview();
+      renderVariableChips();
+    });
+  });
+
+  modal.querySelector('#aem-clear-sheets')?.addEventListener('click', () => {
+    sheetRows = [];
+    sheetHeaders = [];
+    setSheetsLoadedUI(false);
+    modal.querySelector('#aem-sheet-preview').innerHTML = '';
+    renderVariableChips();
+  });
+
+  function replaceVariables(text, row) {
+    if (!text) return text;
+    return text.replace(/\{\{\s*([a-z0-9_\-]+)\s*\}\}/gi, (m, key) => {
+      const v = row[(key || '').toLowerCase()];
+      return (v === undefined || v === null) ? '' : String(v);
+    });
+  }
+
   function parseRecipients(text) {
     if (!text) return [];
     const raw = text.split(/\n|,|;|\s/).map(s => s.trim()).filter(Boolean);
@@ -285,37 +524,85 @@ function showBulkComposerModal() {
   }
 
   async function submitBulk(schedule) {
-    const recipients = parseRecipients(modal.querySelector('#aem-bulk-recipients').value);
+    const manualRecipients = parseRecipients(modal.querySelector('#aem-bulk-recipients').value);
     const subject = (modal.querySelector('#aem-bulk-subject').value || '').trim();
     const body = modal.querySelector('#aem-bulk-body').value || '';
     const startVal = modal.querySelector('#aem-start-time').value;
     const delayMs = parseInt(modal.querySelector('#aem-delay-ms').value || '1000', 10);
 
-    if (recipients.length === 0) { alert('Add at least one valid recipient'); return; }
     if (!subject) { alert('Subject is required'); return; }
     if (!body) { alert('Message body is required'); return; }
 
-    const emails = recipients.map(to => ({ to, subject, body, attachments: selected }));
+    let emails = [];
+    if (sheetRows.length > 0) {
+      const emailCol = (modal.querySelector('#aem-email-column').value || 'email').toLowerCase();
+      if (!sheetHeaders.includes(emailCol)) { alert('Selected email column not found in sheet'); return; }
+      const seen = new Set();
+      sheetRows.forEach(row => {
+        const to = (row[emailCol] || '').toString().trim();
+        const re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+        if (!re.test(to) || seen.has(to)) return;
+        seen.add(to);
+        emails.push({
+          to,
+          subject: replaceVariables(subject, row),
+          body: replaceVariables(body, row),
+          attachments: selected
+        });
+      });
+      if (emails.length === 0) { alert('No valid email addresses found in the sheet'); return; }
+    } else {
+      if (manualRecipients.length === 0) { alert('Add at least one valid recipient'); return; }
+      emails = manualRecipients.map(to => ({ to, subject, body, attachments: selected }));
+    }
+
     const startTime = schedule && startVal ? new Date(startVal).toISOString() : new Date().toISOString();
 
-    chrome.runtime.sendMessage({ action: 'getBackendStatus' }, (statusResp) => {
-      if (statusResp && statusResp.success && statusResp.status !== 'ready') {
-        const proceed = confirm('Backend appears offline. Proceed in local mode? You must keep your PC on.');
-        if (!proceed) return;
+    const wantsMeet = !!modal.querySelector('#aem-meet-create')?.checked;
+    if (wantsMeet) {
+      try {
+        const title = (modal.querySelector('#aem-meet-title')?.value || 'Meeting with {{email}}').trim();
+        const durationMin = parseInt(modal.querySelector('#aem-meet-duration')?.value || '30', 10);
+        const uniqueRecipients = [...new Set(emails.map(e => e.to))];
+        chrome.runtime.sendMessage({ action: 'createMeetEventsBulk', recipients: uniqueRecipients, title, startTime, durationMin }, (resp) => {
+          if (resp && resp.success) {
+            const links = resp.links || {};
+            emails = emails.map(e => {
+              const link = links[e.to] || '';
+              if (!link) return e;
+              const replaced = e.body.includes('{{meet_link}}') ? e.body.replace(/\{\{\s*meet_link\s*\}\}/ig, link) : (e.body + `\n\n<div style=\"font-size:13px;\">Join: <a href=\"${link}\">${link}</a></div>`);
+              return { ...e, body: replaced };
+            });
+          }
+          proceedSend();
+        });
+      } catch (_) {
+        proceedSend();
       }
-      chrome.runtime.sendMessage({
-        action: 'handleBulkSendHybrid',
-        emails,
-        startTime,
-        delay: delayMs
-      }, (response) => {
-        if (!response || response.error || !response.success) {
-          alert('Error: ' + (response && response.error ? response.error : 'Failed'));
-          return;
+    } else {
+      proceedSend();
+    }
+
+    function proceedSend() {
+      chrome.runtime.sendMessage({ action: 'getBackendStatus' }, (statusResp) => {
+        if (statusResp && statusResp.success && statusResp.status !== 'ready') {
+          const proceed = confirm('Backend appears offline. Proceed in local mode? You must keep your PC on.');
+          if (!proceed) return;
         }
-        overlay.remove();
+        chrome.runtime.sendMessage({
+          action: 'handleBulkSendHybrid',
+          emails,
+          startTime,
+          delay: delayMs
+        }, (response) => {
+          if (!response || response.error || !response.success) {
+            alert('Error: ' + (response && response.error ? response.error : 'Failed'));
+            return;
+          }
+          overlay.remove();
+        });
       });
-    });
+    }
   }
 
   modal.querySelector('#aem-send-now').addEventListener('click', () => submitBulk(false));
@@ -358,14 +645,14 @@ async function showTabContent(tabName) {
   
   // Create and show panel in main Gmail area
   const panel = document.createElement('div');
-  panel.className = 'aem-main-content-panel';
+  panel.className = 'aem-main-content-panel aem-theme-luxe';
   panel.style.cssText = `
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: white;
+    background: rgba(15,17,19,0.88);
     z-index: 999999;
     padding: 24px 48px;
     overflow-y: auto;
@@ -374,9 +661,9 @@ async function showTabContent(tabName) {
   
   panel.innerHTML = `
     <div style="max-width: 1200px; margin: 0 auto;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-        <h1 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">TaskForce Email Manager</h1>
-        <button id="aem-close-panel" style="background: #dadce0; border: none; padding: 8px 24px; border-radius: 4px; cursor: pointer; font-size: 14px; color: #202124;">Close</button>
+      <div class="aem-section" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding: 16px; border-radius: 12px;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 600;">TaskForce Email Manager</h1>
+        <button id="aem-close-panel" class="aem-btn-sm">Close</button>
       </div>
       ${html}
     </div>
@@ -1385,6 +1672,8 @@ Best regards</textarea>
 function showAdvancedFollowUpModal() {
   const modal = document.createElement('div');
   modal.id = 'aem-followup-modal';
+  modal.classList.add('aem-theme-luxe');
+  modal.classList.add('aem-theme-luxe');
   modal.style.cssText = `
     position: fixed;
     top: 0;
@@ -1475,6 +1764,18 @@ function showAdvancedFollowUpModal() {
             <span style="font-size: 13px; color: #202124;">Only send if recipient hasn't replied</span>
           </label>
         </div>
+
+        <!-- Targeting: Labels and Gmail Query -->
+        <div style="margin-bottom: 24px;">
+          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">Target by Labels (optional)</label>
+          <div id="aem-labels-selected" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;"></div>
+          <button id="aem-select-labels" style="background:#202124; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:13px;">Select Labels</button>
+        </div>
+        <div style="margin-bottom: 24px;">
+          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">Gmail Search Query (optional)</label>
+          <input type="text" id="followup-query" placeholder="e.g. in:inbox -has:userlabels" style="width: 100%; padding: 10px 12px; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px;">
+          <div style="font-size: 12px; color: #5f6368; margin-top: 6px;">Advanced Gmail search to apply follow-ups across folders/labels</div>
+        </div>
         
         <!-- Email Selection -->
         <div style="margin-bottom: 24px;">
@@ -1558,6 +1859,8 @@ style="width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 4px
     const message = modal.querySelector('#followup-message').value;
     const enabled = modal.querySelector('#auto-enable').checked;
     const autoStopOnReply = modal.querySelector('#auto-stop-reply').checked;
+    const selectedLabels = Array.from(modal.querySelectorAll('#aem-labels-selected .aem-chip')).map(el => el.dataset.value);
+    const gmailQuery = (modal.querySelector('#followup-query').value || '').trim();
     
     // Get day selection
     const selectedDays = [];
@@ -1592,6 +1895,8 @@ style="width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 4px
           timing: { days: days * (i + 1), hours }, // Multiply days for each follow-up in sequence
           triggerOptions: { onlyIfNoReply },
           emailSelection: emailSelection,
+          labels: selectedLabels && selectedLabels.length ? selectedLabels : null,
+          gmailQuery: gmailQuery || null,
           subject: subject,
           message: message,
           enabled: enabled,
@@ -1619,6 +1924,72 @@ style="width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 4px
       });
     });
   });
+
+  // Label selector UI
+  const selectedLabels = new Set();
+  function renderSelectedChips() {
+    const wrap = modal.querySelector('#aem-labels-selected');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    if (selectedLabels.size === 0) {
+      wrap.innerHTML = '<span style="font-size:12px; color:#5f6368;">No labels selected</span>';
+      return;
+    }
+    Array.from(selectedLabels).forEach((name) => {
+      const chip = document.createElement('span');
+      chip.className = 'aem-chip';
+      chip.dataset.value = name;
+      chip.textContent = name;
+      chip.style.cssText = 'padding:6px 10px; border:1px solid #dadce0; border-radius:16px; background:#fff; font-size:12px; display:inline-flex; align-items:center; gap:6px;';
+      const x = document.createElement('button');
+      x.textContent = '×';
+      x.style.cssText = 'border:none; background:transparent; cursor:pointer; font-size:12px;';
+      x.addEventListener('click', () => { selectedLabels.delete(name); renderSelectedChips(); });
+      chip.appendChild(x);
+      wrap.appendChild(chip);
+    });
+  }
+
+  modal.querySelector('#aem-select-labels')?.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'fetchGmailLabels' }, (resp) => {
+      if (!resp || !resp.success) { alert('Failed to fetch labels'); return; }
+      const labels = resp.labels || [];
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000001;display:flex;align-items:center;justify-content:center;';
+      const panel = document.createElement('div');
+      panel.style.cssText = 'background:#fff;max-width:520px;width:100%;max-height:80vh;overflow:auto;border-radius:12px;padding:16px;box-shadow:0 16px 48px rgba(0,0,0,0.25)';
+      panel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center; margin-bottom:8px;">
+          <h3 style="margin:0;font-size:18px;color:#202124;">Select Labels</h3>
+          <button id="aem-close-labels" style="border:none;background:#eef2ff;color:#1a73e8;border-radius:8px;padding:6px 10px;cursor:pointer;">Close</button>
+        </div>
+        <div style="display:grid; gap:8px;">
+          ${labels.map(l => {
+            const isSystem = (l.type || '').toLowerCase() === 'system';
+            const name = l.name;
+            const sel = selectedLabels.has(name) ? 'border-color:#202124;background:#f1f3f4;' : '';
+            return `<button data-name="${name}" style="text-align:left;padding:8px 12px;border:1px solid #dadce0;border-radius:8px;background:#fff;cursor:pointer;${sel}">${isSystem ? '📁' : '🏷️'} ${name}</button>`;
+          }).join('')}
+        </div>
+      `;
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+      panel.querySelector('#aem-close-labels').addEventListener('click', () => overlay.remove());
+      panel.querySelectorAll('button[data-name]')?.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const n = btn.getAttribute('data-name');
+          if (selectedLabels.has(n)) selectedLabels.delete(n); else selectedLabels.add(n);
+          renderSelectedChips();
+          // visual toggle
+          const was = btn.style.borderColor;
+          btn.style.borderColor = selectedLabels.has(n) ? '#202124' : '#dadce0';
+          btn.style.background = selectedLabels.has(n) ? '#f1f3f4' : '#fff';
+        });
+      });
+    });
+  });
+
+  renderSelectedChips();
 }
 
 // Delete follow-up rule
@@ -1656,6 +2027,7 @@ function editFollowUpRule(index) {
     // Show edit modal with pre-filled values
     const modal = document.createElement('div');
     modal.id = 'aem-followup-modal-edit';
+    modal.classList.add('aem-theme-luxe');
     modal.style.cssText = `
       position: fixed;
       top: 0;
@@ -1739,6 +2111,89 @@ function editFollowUpRule(index) {
       if (e.target === modal) modal.remove();
     });
     
+    // Inject Labels + Query UI programmatically for edit modal
+    try {
+      const contentArea = modal.querySelector('div[style*="padding: 24px;"]');
+      const labelsBlock = document.createElement('div');
+      labelsBlock.innerHTML = `
+        <div style="margin-bottom: 24px;">
+          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">Target by Labels (optional)</label>
+          <div id="aem-labels-selected-edit" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;"></div>
+          <button id="aem-select-labels-edit" style="background:#202124; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:13px;">Select Labels</button>
+        </div>
+        <div style="margin-bottom: 24px;">
+          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">Gmail Search Query (optional)</label>
+          <input type="text" id="edit-followup-query" value="${(rule.gmailQuery || '').replace(/"/g,'&quot;')}" placeholder="e.g. in:inbox -has:userlabels" style="width: 100%; padding: 10px 12px; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px;">
+          <div style="font-size: 12px; color: #5f6368; margin-top: 6px;">Advanced Gmail search; overrides default from:me when set</div>
+        </div>
+      `;
+      // Insert before footer (top-level next sibling is footer container)
+      contentArea.parentElement.insertBefore(labelsBlock, contentArea.parentElement.lastElementChild);
+      
+      // Label selector logic
+      const selectedLabelsEdit = new Set((rule.labels || []).filter(Boolean));
+      function renderSelectedChipsEdit() {
+        const wrap = modal.querySelector('#aem-labels-selected-edit');
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        if (selectedLabelsEdit.size === 0) {
+          wrap.innerHTML = '<span style="font-size:12px; color:#5f6368;">No labels selected</span>';
+          return;
+        }
+        Array.from(selectedLabelsEdit).forEach((name) => {
+          const chip = document.createElement('span');
+          chip.className = 'aem-chip';
+          chip.dataset.value = name;
+          chip.textContent = name;
+          chip.style.cssText = 'padding:6px 10px; border:1px solid #dadce0; border-radius:16px; background:#fff; font-size:12px; display:inline-flex; align-items:center; gap:6px;';
+          const x = document.createElement('button');
+          x.textContent = '×';
+          x.style.cssText = 'border:none; background:transparent; cursor:pointer; font-size:12px;';
+          x.addEventListener('click', () => { selectedLabelsEdit.delete(name); renderSelectedChipsEdit(); });
+          chip.appendChild(x);
+          wrap.appendChild(chip);
+        });
+      }
+      
+      modal.querySelector('#aem-select-labels-edit')?.addEventListener('click', () => {
+        chrome.runtime.sendMessage({ action: 'fetchGmailLabels' }, (resp) => {
+          if (!resp || !resp.success) { alert('Failed to fetch labels'); return; }
+          const labels = resp.labels || [];
+          const overlay = document.createElement('div');
+          overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000001;display:flex;align-items:center;justify-content:center;';
+          const panel = document.createElement('div');
+          panel.style.cssText = 'background:#fff;max-width:520px;width:100%;max-height:80vh;overflow:auto;border-radius:12px;padding:16px;box-shadow:0 16px 48px rgba(0,0,0,0.25)';
+          panel.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center; margin-bottom:8px;">
+              <h3 style="margin:0;font-size:18px;color:#202124;">Select Labels</h3>
+              <button id="aem-close-labels-edit" style="border:none;background:#eef2ff;color:#1a73e8;border-radius:8px;padding:6px 10px;cursor:pointer;">Close</button>
+            </div>
+            <div style="display:grid; gap:8px;">
+              ${labels.map(l => {
+                const isSystem = (l.type || '').toLowerCase() === 'system';
+                const name = l.name;
+                const sel = selectedLabelsEdit.has(name) ? 'border-color:#202124;background:#f1f3f4;' : '';
+                return `<button data-name="${name}" style="text-align:left;padding:8px 12px;border:1px solid #dadce0;border-radius:8px;background:#fff;cursor:pointer;${sel}">${isSystem ? '📁' : '🏷️'} ${name}</button>`;
+              }).join('')}
+            </div>
+          `;
+          overlay.appendChild(panel);
+          document.body.appendChild(overlay);
+          panel.querySelector('#aem-close-labels-edit').addEventListener('click', () => overlay.remove());
+          panel.querySelectorAll('button[data-name]')?.forEach(btn => {
+            btn.addEventListener('click', () => {
+              const n = btn.getAttribute('data-name');
+              if (selectedLabelsEdit.has(n)) selectedLabelsEdit.delete(n); else selectedLabelsEdit.add(n);
+              renderSelectedChipsEdit();
+              btn.style.borderColor = selectedLabelsEdit.has(n) ? '#202124' : '#dadce0';
+              btn.style.background = selectedLabelsEdit.has(n) ? '#f1f3f4' : '#fff';
+            });
+          });
+        });
+      });
+      renderSelectedChipsEdit();
+    } catch (_) {}
+    
     // Save changes
     modal.querySelector('#save-edit-followup').addEventListener('click', () => {
       const days = parseInt(modal.querySelector('#edit-followup-days').value);
@@ -1748,6 +2203,8 @@ function editFollowUpRule(index) {
       const subject = modal.querySelector('#edit-followup-subject').value;
       const message = modal.querySelector('#edit-followup-message').value;
       const enabled = modal.querySelector('#edit-auto-enable').checked;
+      const labelsArr = Array.from(modal.querySelectorAll('#aem-labels-selected-edit .aem-chip')).map(el => el.dataset.value);
+      const gmailQuery = (modal.querySelector('#edit-followup-query')?.value || '').trim();
       
       if (!message.trim()) {
         alert('Please enter a follow-up message');
@@ -1762,6 +2219,8 @@ function editFollowUpRule(index) {
         subject: subject,
         message: message,
         enabled: enabled,
+        labels: labelsArr && labelsArr.length ? labelsArr : null,
+        gmailQuery: gmailQuery || null,
         updatedAt: new Date().toISOString()
       };
       
@@ -1804,6 +2263,8 @@ function addScheduleButton(composeContainer) {
   scheduleBtn.querySelector('button').addEventListener('click', () => {
     showScheduleDialog(composeContainer);
   });
+  // Skip adding Bulk Send buttons to Gmail composer; use sidebar Bulk Composer instead.
+  return;
   
   // Add Bulk Send button (ONLY Schedule and Bulk Send in composer)
   const bulkBtn = document.createElement('div');
@@ -2799,6 +3260,7 @@ function showAnalyticsModal() {
     
     const modal = document.createElement('div');
     modal.id = 'aem-analytics-modal';
+    modal.classList.add('aem-theme-luxe');
     modal.style.cssText = `
       position: fixed;
       top: 0;
@@ -3106,6 +3568,7 @@ function showRecipientPicker(composeContainer) {
 function showCSVImportModal(composeContainer) {
   const modal = document.createElement('div');
   modal.id = 'aem-csv-import';
+  modal.classList.add('aem-theme-luxe');
   modal.style.cssText = `
     position: fixed;
     top: 0;
@@ -3246,6 +3709,7 @@ function showTemplatesModal(composeContainer) {
     
     const modal = document.createElement('div');
     modal.id = 'aem-templates-modal';
+    modal.classList.add('aem-theme-luxe');
     modal.style.cssText = `
       position: fixed;
       top: 0;
@@ -4312,4 +4776,3 @@ new MutationObserver(() => {
 }).observe(document, { subtree: true, childList: true });
 
 console.log('TaskForce Email Manager: Initialization complete');
-

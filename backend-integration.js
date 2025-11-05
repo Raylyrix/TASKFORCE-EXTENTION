@@ -2,7 +2,8 @@
 // TaskForce Email Manager
 
 // Configuration - CHANGE THIS TO YOUR BACKEND URL
-const BACKEND_URL = 'https://your-backend.herokuapp.com'; // Update this with your deployed backend URL
+// For local development, you can run the backend on http://localhost:3000
+const BACKEND_URL = typeof BACKEND_URL !== 'undefined' ? BACKEND_URL : 'http://localhost:3000';
 
 // Backend status tracking
 let backendStatus = 'unknown'; // 'ready', 'offline', 'checking', 'unknown'
