@@ -106,6 +106,17 @@ async function sendScheduledEmail(emailId) {
     const cc = email.cc ? email.cc.split(',').map(e => e.trim()) : [];
     const bcc = email.bcc ? email.bcc.split(',').map(e => e.trim()) : [];
     
+    // Pre-send validation (gentle block)
+    const val = validateEmailForSend({ to: email.to, subject: email.subject, body: email.body });
+    if (!val.ok) {
+      console.warn('Validation failed for scheduled email:', val.reason);
+      notifyEmailError && notifyEmailError('Validation failed: ' + val.reason);
+      scheduledEmails[emailIndex].status = 'error';
+      scheduledEmails[emailIndex].error = val.reason;
+      await chrome.storage.local.set({ scheduledEmails });
+      return;
+    }
+
     // Send email via Gmail API
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
@@ -1220,6 +1231,9 @@ async function startBulkSending(emails, startTime, delay) {
       const email = emails[i];
       
       try {
+        // Validate each email gently; skip invalid items
+        const v = validateEmailForSend(email);
+        if (!v.ok) { console.warn('Skipping invalid email:', v.reason); failedCount++; continue; }
         // Check daily limit
         if (!(await checkDailyLimit())) {
           console.warn('Daily limit reached, stopping');

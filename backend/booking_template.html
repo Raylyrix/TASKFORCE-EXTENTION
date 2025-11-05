@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Book a Meeting</title>
+    <style>
+      :root{--bg:#0b0c0f;--card:#121419;--ink:#e6e8eb;--muted:#9aa3af;--line:#272b33;--accent:#ffffff;--accent2:#44484f}
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#0b0c0f,#0e1013);color:var(--ink);margin:0;padding:0}
+      .wrap{max-width:760px;margin:0 auto;padding:24px}
+      .brand{display:flex;align-items:center;gap:10px;margin:8px 0 16px}
+      .logo{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#0b0c0f,#1a1d23);border:1px solid var(--line);display:inline-block}
+      h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.3px}
+      .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+      .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+      .slot{display:inline-block;margin:6px}
+      .slot button{padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:#171a20;color:var(--ink);cursor:pointer}
+      .slot button:hover{background:#1c2027}
+      input,select,button{font-size:14px}
+      select,input{padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+      #confirm{padding:8px 12px;border-radius:10px;border:1px solid var(--accent2);background:#0f1114;color:var(--ink);cursor:pointer}
+      #confirm:disabled{opacity:.5;cursor:not-allowed}
+      .watermark{margin-top:16px;color:var(--muted);font-size:12px;text-align:center}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="brand"><span class="logo"></span><h1>TaskForce — Book a meeting{{TITLE_EXTRA}}</h1></div>
+      <div class="card">
+        <div class="row">
+          <label for="tz" style="color:#9ca3af">Timezone</label>
+          <select id="tz">
+            <option value="local">Your local time</option>
+            <option value="UTC">UTC</option>
+            <option value="America/New_York">America/New_York</option>
+            <option value="Europe/London">Europe/London</option>
+            <option value="Europe/Berlin">Europe/Berlin</option>
+            <option value="Asia/Kolkata">Asia/Kolkata</option>
+            <option value="Asia/Tokyo">Asia/Tokyo</option>
+            <option value="Australia/Sydney">Australia/Sydney</option>
+          </select>
+        </div>
+        <div id="slots">Loading...</div>
+        <div style="margin-top:12px">
+          <input id="email" type="email" placeholder="Your email" style="padding:8px;border-radius:8px;border:1px solid #2a2f35;background:#0f1113;color:#e5e7eb">
+          <button id="confirm" disabled>Confirm</button>
+        </div>
+        <div id="msg" style="margin-top:10px;color:#9ca3af"></div>
+      </div>
+      <div class="watermark">Sent using TaskForce automated mailer</div>
+    </div>
+    <script>
+      (function(){
+        var token='{{TOKEN}}';
+        var selected=null;
+        function fmtInTZ(s, tz){ var d=new Date(s); return d.toLocaleString('en-US', tz==='local'? {} : { timeZone: tz }); }
+        function render(tz, slots){
+          var box=document.getElementById('slots');
+          if(!slots||!slots.length){ box.textContent='No free slots'; return; }
+          box.innerHTML=slots.map(function(s){ var local=new Date(s.start).toLocaleString(); var label=fmtInTZ(s.start, tz); return '<span class="slot"><button title="This time in your zone is '+local+'" data-id="'+s.id+'">'+label+' ('+s.duration+'m)</button></span>'; }).join('');
+          Array.prototype.forEach.call(box.querySelectorAll('button'), function(b){ b.onclick=function(){ selected=b.getAttribute('data-id'); document.getElementById('confirm').disabled=false; }; });
+        }
+        var slotsCache=null;
+        function load(){ fetch('/api/book/slots?token='+token).then(function(r){return r.json();}).then(function(j){ if(!j.success){document.getElementById('slots').textContent='Failed to load slots';return;} slotsCache=j.slots||[]; render(document.getElementById('tz').value, slotsCache); }); }
+        document.getElementById('tz').onchange=function(){ if(slotsCache) render(this.value, slotsCache); };
+        load();
+        document.getElementById('confirm').onclick=function(){
+          var email=document.getElementById('email').value;
+          if(!email||!selected){alert('Pick a slot and enter email');return;}
+          fetch('/api/book/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token,slotId:selected,email:email})}).then(function(r){return r.json();}).then(function(j){
+            if(!j.success){document.getElementById('msg').textContent=j.error||'Failed';return;}
+            document.getElementById('msg').textContent='Booked! Meet link: '+(j.meetLink||'');
+          });
+        };
+      })();
+    </script>
+  </body>
+  </html>

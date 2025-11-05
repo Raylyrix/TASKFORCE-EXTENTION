@@ -289,6 +289,34 @@ function showBulkComposerModal() {
         </div>
         <div style="font-size:12px; color:#5f6368; margin-top:6px;">Uses Bulk start time if set; otherwise schedules ~1 hour from now. Insert {{meet_link}} in your message to place the link inline.</div>
       </div>
+      <div style="border:1px solid #dadce0; border-radius:4px; padding:12px; background:#fff;">
+        <div style="font-weight:600; color:#202124; margin-bottom:8px;">Include Booking Link (Calendly-style)</div>
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px;"><input type="checkbox" id="aem-booking-create"> <span style="font-size:13px;color:#202124;">Create availability page and include booking link</span></label>
+        <div style="display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:8px;">
+          <input id="aem-booking-title" placeholder="Booking title (e.g. Intro call)" style="border:1px solid #dadce0; border-radius:4px; padding:8px; font-size:13px; background:#fff; color:#202124;" />
+          <select id="aem-booking-duration" style="border:1px solid #dadce0; border-radius:4px; padding:8px; font-size:13px; background:#fff; color:#202124;">
+            <option value="15">15 min</option>
+            <option value="30" selected>30 min</option>
+            <option value="45">45 min</option>
+            <option value="60">60 min</option>
+          </select>
+          <input id="aem-booking-days" type="number" min="1" max="60" value="14" placeholder="Days ahead" style="border:1px solid #dadce0; border-radius:4px; padding:8px; font-size:13px; background:#fff; color:#202124;" />
+          <select id="aem-booking-tz" style="border:1px solid #dadce0; border-radius:4px; padding:8px; font-size:13px; background:#fff; color:#202124;">
+            <option value="UTC">UTC</option>
+            <option value="America/New_York">America/New_York</option>
+            <option value="Europe/London">Europe/London</option>
+            <option value="Europe/Berlin">Europe/Berlin</option>
+            <option value="Asia/Kolkata">Asia/Kolkata</option>
+            <option value="Asia/Tokyo">Asia/Tokyo</option>
+            <option value="Australia/Sydney">Australia/Sydney</option>
+          </select>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:8px; margin-top:8px;">
+          <input id="aem-booking-start" type="time" value="09:00" style="border:1px solid #dadce0; border-radius:4px; padding:8px; font-size:13px; background:#fff; color:#202124;" />
+          <input id="aem-booking-end" type="time" value="17:00" style="border:1px solid #dadce0; border-radius:4px; padding:8px; font-size:13px; background:#fff; color:#202124;" />
+        </div>
+        <div style="font-size:12px; color:#5f6368; margin-top:6px;">Tip: Use {{booking_link}} in your message to place the link inline. Otherwise, it will be appended.</div>
+      </div>
       <div>
         <label style="font-size:12px; color:#5f6368; font-weight:600;">Attachments</label>
         <input id="aem-file-input" type="file" multiple style="display:block; margin-top:6px;" />
@@ -559,6 +587,40 @@ function showBulkComposerModal() {
     const startTime = schedule && startVal ? new Date(startVal).toISOString() : new Date().toISOString();
 
     const wantsMeet = !!modal.querySelector('#aem-meet-create')?.checked;
+    const wantsBooking = !!modal.querySelector('#aem-booking-create')?.checked;
+    async function createBookingLinkIfNeeded(next) {
+      if (!wantsBooking) { next(); return; }
+      try {
+        chrome.runtime.sendMessage({ action:'getBackendStatus' }, async (statusResp) => {
+          const userId = statusResp && statusResp.userId;
+          if (!userId) { next(); return; }
+          const durationMin = parseInt(modal.querySelector('#aem-booking-duration')?.value || '30', 10);
+          const daysAhead = parseInt(modal.querySelector('#aem-booking-days')?.value || '14', 10);
+          const windowStart = (modal.querySelector('#aem-booking-start')?.value || '09:00');
+          const windowEnd = (modal.querySelector('#aem-booking-end')?.value || '17:00');
+          const timezone = (modal.querySelector('#aem-booking-tz')?.value || 'UTC');
+          const title = (modal.querySelector('#aem-booking-title')?.value || 'Meeting');
+          try {
+            const resp = await fetch(`${BACKEND_URL}/api/availability/create`, {
+              method:'POST', headers:{ 'Content-Type':'application/json' },
+              body: JSON.stringify({ userId, title, durationMin, daysAhead, windowStart, windowEnd, timezone })
+            });
+            if (resp.ok) {
+              const data = await resp.json();
+              const link = data.bookingUrl;
+              emails = emails.map(e => {
+                if (e.body.includes('{{booking_link}}')) {
+                  return { ...e, body: e.body.replace(/\{\{\s*booking_link\s*\}\}/ig, link) };
+                }
+                return { ...e, body: e.body + `\n\n<div style=\"font-size:13px;\">Book a time: <a href=\"${link}\">${link}</a></div>` };
+              });
+            }
+          } catch(_){}
+          next();
+        });
+      } catch(_) { next(); }
+    }
+
     if (wantsMeet) {
       try {
         const title = (modal.querySelector('#aem-meet-title')?.value || 'Meeting with {{email}}').trim();
@@ -574,13 +636,13 @@ function showBulkComposerModal() {
               return { ...e, body: replaced };
             });
           }
-          proceedSend();
+          createBookingLinkIfNeeded(proceedSend);
         });
       } catch (_) {
-        proceedSend();
+        createBookingLinkIfNeeded(proceedSend);
       }
     } else {
-      proceedSend();
+      createBookingLinkIfNeeded(proceedSend);
     }
 
     function proceedSend() {
