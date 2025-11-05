@@ -594,6 +594,30 @@ app.get('/metrics', async (req, res) => {
   }
 });
 
+// Manual cron trigger: process due scheduled emails now
+app.post('/api/cron/process-emails', async (req, res) => {
+  try {
+    const now = new Date();
+    const result = await pool.query(
+      `SELECT * FROM scheduled_emails 
+       WHERE status = 'scheduled' 
+       AND scheduled_for <= $1
+       ORDER BY scheduled_for ASC
+       LIMIT 200`,
+      [now]
+    );
+    let sent = 0, failed = 0;
+    for (const email of result.rows) {
+      try { await sendEmail(email); sent++; }
+      catch (_) { failed++; }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    res.json({ success: true, processed: result.rows.length, sent, failed });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // Cancel scheduled email
 app.delete('/api/emails/schedule/:emailId', async (req, res) => {
   try {

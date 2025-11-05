@@ -1,9 +1,9 @@
-// Advanced Backend Integration with Health Checks & Hybrid Sending
+﻿// Advanced Backend Integration with Health Checks & Hybrid Sending
 // TaskForce Email Manager
 
 // Configuration - CHANGE THIS TO YOUR BACKEND URL
 // For local development, you can run the backend on http://localhost:3000
-const BACKEND_URL = typeof BACKEND_URL !== 'undefined' ? BACKEND_URL : 'http://localhost:3000';
+const BACKEND_URL = typeof BACKEND_URL !== 'undefined' ? BACKEND_URL : 'https://taskforce.onrender.com';
 
 // Backend status tracking
 let backendStatus = 'unknown'; // 'ready', 'offline', 'checking', 'unknown'
@@ -82,7 +82,7 @@ function startBackendMonitoring() {
   // Then check every 30 seconds
   backendCheckInterval = setInterval(monitorBackendStatus, 30000);
   
-  console.log('🔍 Backend monitoring started');
+  console.log('ðŸ” Backend monitoring started');
 }
 
 // Monitor backend status and handle transitions
@@ -96,7 +96,7 @@ async function monitorBackendStatus() {
     handleBackendStatusChange(prevStatus, backendStatus);
   }
   
-  console.log(`📊 Backend status: ${backendStatus} - ${healthCheck.message}`);
+  console.log(`ðŸ“Š Backend status: ${backendStatus} - ${healthCheck.message}`);
   
   // Store status
   chrome.storage.local.set({ 
@@ -108,7 +108,7 @@ async function monitorBackendStatus() {
 
 // Handle backend status transitions
 async function handleBackendStatusChange(oldStatus, newStatus) {
-  console.log(`🔄 Backend status changed: ${oldStatus} → ${newStatus}`);
+  console.log(`ðŸ”„ Backend status changed: ${oldStatus} â†’ ${newStatus}`);
   
   if (newStatus === 'ready' && oldStatus === 'offline') {
     // Backend came online - migrate pending emails
@@ -123,7 +123,7 @@ async function handleBackendStatusChange(oldStatus, newStatus) {
 
 // Handle backend reconnection
 async function handleBackendReconnected() {
-  console.log('🎉 Backend reconnected!');
+  console.log('ðŸŽ‰ Backend reconnected!');
   
   // Initialize user registration
   await initializeBackend();
@@ -143,7 +143,7 @@ function showBackendOfflineNotification() {
     type: 'basic',
     iconUrl: 'icons/icon128.png',
     title: 'TaskForce Email Manager',
-    message: '⚠️ Backend offline - Don\'t turn off your PC! Emails will only send with browser open.',
+    message: 'âš ï¸ Backend offline - Don\'t turn off your PC! Emails will only send with browser open.',
     buttons: [{ title: 'Check Status' }]
   });
 }
@@ -232,16 +232,16 @@ async function initiateBackendOAuth() {
 // Initialize backend connection
 async function initializeBackend() {
   try {
-    console.log('🔌 Initializing backend connection...');
+    console.log('ðŸ”Œ Initializing backend connection...');
     
     if (backendStatus !== 'ready') {
-      console.warn('⚠️ Backend not ready, skipping registration');
+      console.warn('âš ï¸ Backend not ready, skipping registration');
       return false;
     }
     
     const userEmail = await getUserEmail();
     if (!userEmail) {
-      console.warn('⚠️ No user email found');
+      console.warn('âš ï¸ No user email found');
       return false;
     }
     
@@ -252,7 +252,7 @@ async function initializeBackend() {
     
     if (result.success) {
       backendUserId = result.userId;
-      console.log('✅ User registered with backend:', backendUserId);
+      console.log('âœ… User registered with backend:', backendUserId);
       
       chrome.storage.local.set({ 
         backendUserId: result.userId,
@@ -265,7 +265,7 @@ async function initializeBackend() {
     
     return false;
   } catch (error) {
-    console.error('❌ Backend initialization error:', error);
+    console.error('âŒ Backend initialization error:', error);
     chrome.storage.local.set({ backendConnected: false });
     return false;
   }
@@ -278,7 +278,7 @@ async function initializeBackend() {
 // Schedule email with smart routing
 async function scheduleEmailHybrid(email, scheduledFor, origin = 'compose') {
   try {
-    console.log('📧 Scheduling email with hybrid system...');
+    console.log('ðŸ“§ Scheduling email with hybrid system...');
     
     // Get backend status
     await chrome.storage.local.get(['backendStatus', 'backendUserId'], async (result) => {
@@ -304,7 +304,7 @@ async function scheduleEmailHybrid(email, scheduledFor, origin = 'compose') {
         await scheduleEmailLocally(email, scheduledFor);
         
         // Show warning
-        await showLocalModeNotification('⚠️ Backend offline - Please DO NOT close or turn off your PC!');
+        await showLocalModeNotification('âš ï¸ Backend offline - Please DO NOT close or turn off your PC!');
         
         // Store for later migration (persistent)
         await addPendingEmail(email, scheduledFor);
@@ -313,7 +313,7 @@ async function scheduleEmailHybrid(email, scheduledFor, origin = 'compose') {
   } catch (error) {
     console.error('Schedule email error:', error);
     await scheduleEmailLocally(email, scheduledFor);
-    await showLocalModeNotification('⚠️ Using local mode - Please keep your PC on');
+    await showLocalModeNotification('âš ï¸ Using local mode - Please keep your PC on');
   }
 }
 
@@ -335,7 +335,7 @@ async function scheduleEmailOnBackend(userId, emailData, scheduledFor) {
     }
     
     const data = await response.json();
-    console.log('✅ Email scheduled on backend:', data.emailId);
+    console.log('âœ… Email scheduled on backend:', data.emailId);
     return data;
   } catch (error) {
     console.error('Schedule email on backend error:', error);
@@ -364,7 +364,7 @@ async function scheduleEmailLocally(email, scheduledFor) {
           when: new Date(scheduledFor).getTime()
         });
         
-        console.log('✅ Email scheduled locally:', emailId);
+        console.log('âœ… Email scheduled locally:', emailId);
         resolve({ success: true, emailId });
       });
     });
@@ -391,7 +391,7 @@ async function handleBulkSendHybrid(emails, startTime, delay) {
     } else {
       // Backend not ready - start local campaign
       await startBulkSendLocally(emails, startTime, delay);
-      await showLocalModeNotification(`⚠️ Bulk send started locally - DO NOT turn off PC! Monitoring backend...`);
+      await showLocalModeNotification(`âš ï¸ Bulk send started locally - DO NOT turn off PC! Monitoring backend...`);
       
       // Start backend monitoring for migration
       monitorBulkSendBackendAvailable(emails.length);
@@ -432,7 +432,7 @@ async function migrateActiveBulkSendToBackend() {
     // Show notification
     await showBackendMigratedNotification(remaining, campaign.total);
     
-    console.log(`🔄 Migrating ${remaining} remaining emails to backend`);
+    console.log(`ðŸ”„ Migrating ${remaining} remaining emails to backend`);
     
     // Clear local campaign
     chrome.storage.local.set({ activeBulkCampaign: null });
@@ -464,7 +464,7 @@ async function startBulkSendOnBackend(emails, startTime, delay) {
       }
       
       const data = await response.json();
-      console.log(`✅ Bulk send scheduled on backend: ${data.count} emails`);
+      console.log(`âœ… Bulk send scheduled on backend: ${data.count} emails`);
       return data;
     });
   } catch (error) {
@@ -507,7 +507,7 @@ async function showBackendActiveNotification(message) {
   chrome.notifications.create(CONNECT_BACKEND_NOTIFICATION_ID, {
     type: 'basic',
     iconUrl: 'icons/icon128.png',
-    title: '🚀 TaskForce Email Manager',
+    title: 'ðŸš€ TaskForce Email Manager',
     message: message,
     buttons: [{ title: 'Connect Backend' }, { title: 'Close' }]
   });
@@ -515,7 +515,7 @@ async function showBackendActiveNotification(message) {
   // Try to open popup automatically
   chrome.action.openPopup();
   
-  console.log('✅ Backend Active:', message);
+  console.log('âœ… Backend Active:', message);
 }
 
 // Show local mode notification
@@ -523,12 +523,12 @@ async function showLocalModeNotification(message) {
   chrome.notifications.create(LOCAL_MODE_NOTIFICATION_ID, {
     type: 'basic',
     iconUrl: 'icons/icon128.png',
-    title: '⚠️ TaskForce Email Manager',
+    title: 'âš ï¸ TaskForce Email Manager',
     message: message,
     buttons: [{ title: 'Connect Backend' }, { title: 'OK' }]
   });
   
-  console.log('⚠️ Local Mode:', message);
+  console.log('âš ï¸ Local Mode:', message);
 }
 
 // Show migrated notification
@@ -536,8 +536,8 @@ async function showBackendMigratedNotification(remaining, total) {
   chrome.notifications.create({
     type: 'basic',
     iconUrl: 'icons/icon128.png',
-    title: '🎉 TaskForce Email Manager',
-    message: `Backend is now ready! The remaining ${remaining}/${total} emails will send automatically. You can turn off your PC now! 🚀`,
+    title: 'ðŸŽ‰ TaskForce Email Manager',
+    message: `Backend is now ready! The remaining ${remaining}/${total} emails will send automatically. You can turn off your PC now! ðŸš€`,
     buttons: [{ title: 'Close' }]
   });
   
@@ -557,7 +557,7 @@ async function migratePendingEmailsToBackend() {
   chrome.storage.local.get('backendUserId', async (result) => {
     if (!result.backendUserId) return;
     
-    console.log(`🔄 Migrating ${list.length} pending emails to backend`);
+    console.log(`ðŸ”„ Migrating ${list.length} pending emails to backend`);
     
     for (const pending of list) {
       try {
@@ -569,7 +569,7 @@ async function migratePendingEmailsToBackend() {
     
     // Clear pending emails
     await clearPendingEmails();
-    console.log('✅ Pending emails migrated');
+    console.log('âœ… Pending emails migrated');
   });
 }
 
@@ -591,12 +591,12 @@ async function checkAndNotifyActiveSends() {
 
 // Initialize on startup
 chrome.runtime.onStartup.addListener(() => {
-  console.log('🚀 Extension started, initializing backend...');
+  console.log('ðŸš€ Extension started, initializing backend...');
   startBackendMonitoring();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('📦 Extension installed, initializing backend...');
+  console.log('ðŸ“¦ Extension installed, initializing backend...');
   startBackendMonitoring();
 });
 

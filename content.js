@@ -588,61 +588,63 @@ function showBulkComposerModal() {
 
     const wantsMeet = !!modal.querySelector('#aem-meet-create')?.checked;
     const wantsBooking = !!modal.querySelector('#aem-booking-create')?.checked;
-    async function createBookingLinkIfNeeded(next) {
-      if (!wantsBooking) { next(); return; }
-      try {
-        chrome.runtime.sendMessage({ action:'getBackendStatus' }, async (statusResp) => {
-          const userId = statusResp && statusResp.userId;
-          if (!userId) { next(); return; }
-          const durationMin = parseInt(modal.querySelector('#aem-booking-duration')?.value || '30', 10);
-          const daysAhead = parseInt(modal.querySelector('#aem-booking-days')?.value || '14', 10);
-          const windowStart = (modal.querySelector('#aem-booking-start')?.value || '09:00');
-          const windowEnd = (modal.querySelector('#aem-booking-end')?.value || '17:00');
-          const timezone = (modal.querySelector('#aem-booking-tz')?.value || 'UTC');
-          const title = (modal.querySelector('#aem-booking-title')?.value || 'Meeting');
-          try {
-            const resp = await fetch(`${BACKEND_URL}/api/availability/create`, {
-              method:'POST', headers:{ 'Content-Type':'application/json' },
-              body: JSON.stringify({ userId, title, durationMin, daysAhead, windowStart, windowEnd, timezone })
+    async function buildEmailsWithInserts(callback) {
+      let updated = emails.slice();
+      if (wantsMeet) {
+        try {
+          const title = (modal.querySelector('#aem-meet-title')?.value || 'Meeting with {{email}}').trim();
+          const durationMin = parseInt(modal.querySelector('#aem-meet-duration')?.value || '30', 10);
+          const uniqueRecipients = [...new Set(updated.map(e => e.to))];
+          await new Promise((resolve) => {
+            chrome.runtime.sendMessage({ action: 'createMeetEventsBulk', recipients: uniqueRecipients, title, startTime, durationMin }, (resp) => {
+              if (resp && resp.success) {
+                const links = resp.links || {};
+                updated = updated.map(e => {
+                  const link = links[e.to] || '';
+                  if (!link) return e;
+                  const replaced = e.body.includes('{{meet_link}}') ? e.body.replace(/\{\{\s*meet_link\s*\}\}/ig, link) : (e.body + `\n\n<div style=\"font-size:13px;\">Join: <a href=\"${link}\">${link}</a></div>`);
+                  return { ...e, body: replaced };
+                });
+              }
+              resolve();
             });
-            if (resp.ok) {
-              const data = await resp.json();
-              const link = data.bookingUrl;
-              emails = emails.map(e => {
-                if (e.body.includes('{{booking_link}}')) {
-                  return { ...e, body: e.body.replace(/\{\{\s*booking_link\s*\}\}/ig, link) };
-                }
-                return { ...e, body: e.body + `\n\n<div style=\"font-size:13px;\">Book a time: <a href=\"${link}\">${link}</a></div>` };
-              });
-            }
-          } catch(_){}
-          next();
-        });
-      } catch(_) { next(); }
-    }
-
-    if (wantsMeet) {
-      try {
-        const title = (modal.querySelector('#aem-meet-title')?.value || 'Meeting with {{email}}').trim();
-        const durationMin = parseInt(modal.querySelector('#aem-meet-duration')?.value || '30', 10);
-        const uniqueRecipients = [...new Set(emails.map(e => e.to))];
-        chrome.runtime.sendMessage({ action: 'createMeetEventsBulk', recipients: uniqueRecipients, title, startTime, durationMin }, (resp) => {
-          if (resp && resp.success) {
-            const links = resp.links || {};
-            emails = emails.map(e => {
-              const link = links[e.to] || '';
-              if (!link) return e;
-              const replaced = e.body.includes('{{meet_link}}') ? e.body.replace(/\{\{\s*meet_link\s*\}\}/ig, link) : (e.body + `\n\n<div style=\"font-size:13px;\">Join: <a href=\"${link}\">${link}</a></div>`);
-              return { ...e, body: replaced };
-            });
-          }
-          createBookingLinkIfNeeded(proceedSend);
-        });
-      } catch (_) {
-        createBookingLinkIfNeeded(proceedSend);
+          });
+        } catch(_){}
       }
-    } else {
-      createBookingLinkIfNeeded(proceedSend);
+      if (wantsBooking && typeof BACKEND_URL !== 'undefined') {
+        try {
+          await new Promise((resolve) => {
+            chrome.runtime.sendMessage({ action:'getBackendStatus' }, async (statusResp) => {
+              const userId = statusResp && statusResp.userId;
+              if (!userId) { resolve(); return; }
+              const durationMin = parseInt(modal.querySelector('#aem-booking-duration')?.value || '30', 10);
+              const daysAhead = parseInt(modal.querySelector('#aem-booking-days')?.value || '14', 10);
+              const windowStart = (modal.querySelector('#aem-booking-start')?.value || '09:00');
+              const windowEnd = (modal.querySelector('#aem-booking-end')?.value || '17:00');
+              const timezone = (modal.querySelector('#aem-booking-tz')?.value || 'UTC');
+              const title = (modal.querySelector('#aem-booking-title')?.value || 'Meeting');
+              try {
+                const resp = await fetch(`${BACKEND_URL}/api/availability/create`, {
+                  method:'POST', headers:{ 'Content-Type':'application/json' },
+                  body: JSON.stringify({ userId, title, durationMin, daysAhead, windowStart, windowEnd, timezone })
+                });
+                if (resp.ok) {
+                  const data = await resp.json();
+                  const link = data.bookingUrl;
+                  updated = updated.map(e => {
+                    if (e.body.includes('{{booking_link}}')) {
+                      return { ...e, body: e.body.replace(/\{\{\s*booking_link\s*\}\}/ig, link) };
+                    }
+                    return { ...e, body: e.body + `\n\n<div style=\"font-size:13px;\">Book a time: <a href=\"${link}\">${link}</a></div>` };
+                  });
+                }
+              } catch(_){}
+              resolve();
+            });
+          });
+        } catch(_){}
+      }
+      callback(updated);
     }
 
     function proceedSend() {
@@ -651,17 +653,35 @@ function showBulkComposerModal() {
           const proceed = confirm('Backend appears offline. Proceed in local mode? You must keep your PC on.');
           if (!proceed) return;
         }
-        chrome.runtime.sendMessage({
-          action: 'handleBulkSendHybrid',
-          emails,
-          startTime,
-          delay: delayMs
-        }, (response) => {
-          if (!response || response.error || !response.success) {
-            alert('Error: ' + (response && response.error ? response.error : 'Failed'));
-            return;
-          }
-          overlay.remove();
+        buildEmailsWithInserts((finalEmails) => {
+          const tryLocalFallback = () => {
+            chrome.runtime.sendMessage({ action: 'startBulkSending', emails: finalEmails, startTime, delay: delayMs }, (resp2) => {
+              if (!resp2 || resp2.error) {
+                alert('Background not responding. Please reload the extension and try again.');
+              } else {
+                alert('Bulk sending started locally. Keep your PC on.');
+              }
+              try { overlay.remove(); } catch(_) {}
+            });
+          };
+          let responded = false;
+          const timer = setTimeout(() => { if (!responded) tryLocalFallback(); }, 5000);
+          chrome.runtime.sendMessage({
+            action: 'handleBulkSendHybrid',
+            emails: finalEmails,
+            startTime,
+            delay: delayMs
+          }, (response) => {
+            responded = true;
+            clearTimeout(timer);
+            if (!response || response.error || !response.success) {
+              // Fallback to local sender if hybrid handler unavailable
+              tryLocalFallback();
+              return;
+            }
+            try { overlay.remove(); } catch(_) {}
+            alert('Bulk sending started. You can monitor progress in Sent.');
+          });
         });
       });
     }
