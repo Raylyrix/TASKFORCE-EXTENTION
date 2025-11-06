@@ -15,10 +15,33 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.length === 0) return callback(null, true);
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Always allow Chrome extension origins (chrome-extension://*)
+    if (origin.startsWith('chrome-extension://')) {
+      return callback(null, true);
+    }
+    
+    // If ALLOWED_ORIGINS is empty, allow all origins (development only)
+    if (allowedOrigins.length === 0) {
+      if (process.env.NODE_ENV === 'production') {
+        return callback(new Error('CORS: ALLOWED_ORIGINS must be set in production'));
+      }
+      return callback(null, true);
+    }
+    
+    // Check if origin is in allowed list
     if (allowedOrigins.includes(origin)) return callback(null, true);
+    
+    // Allow localhost in development
+    if (process.env.NODE_ENV === 'development' && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+      return callback(null, true);
+    }
+    
     return callback(new Error('Not allowed by CORS'));
-  }
+  },
+  credentials: true
 }));
 app.use(express.json());
 // Basic security headers
