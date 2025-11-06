@@ -2,9 +2,9 @@
 // TaskForce Email Manager
 
 // Configuration - CHANGE THIS TO YOUR BACKEND URL
-// For local development, use: http://localhost:3000
+// For local development, use: http://localhost:5000
 // For production, use your deployed backend URL
-const BACKEND_URL = 'http://localhost:3000'; // Update this to your backend URL
+const BACKEND_URL = 'http://localhost:5000'; // Update this to your backend URL
 
 // Backend status tracking
 let backendStatus = 'unknown'; // 'ready', 'offline', 'checking', 'unknown'

@@ -61,7 +61,7 @@ npm start
 npm run dev
 ```
 
-The server will start on `http://localhost:3000` by default.
+The server will start on `http://localhost:5000` by default.
 
 ## Database Tables
 
@@ -130,13 +130,13 @@ The backend will automatically create the following tables on startup:
 
 3. **Test Health Endpoint**:
    ```bash
-   curl http://localhost:3000/health
+   curl http://localhost:5000/health
    ```
 
 4. **Update Extension Backend URL**:
    In `backend-integration.js`, ensure:
    ```javascript
-   const BACKEND_URL = 'http://localhost:3000';
+   const BACKEND_URL = 'http://localhost:5000';
    ```
 
 ## Troubleshooting
@@ -148,11 +148,11 @@ The backend will automatically create the following tables on startup:
 
 ### Port Already in Use
 - Change `PORT` in `.env` file
-- Or kill the process using port 3000
+- Or kill the process using port 5000
 
 ### OAuth Errors
 - Verify `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`
-- Ensure OAuth redirect URI is set to `http://localhost:3000/api/auth/callback`
+- Ensure OAuth redirect URI is set to `http://localhost:5000/api/auth/callback`
 
 ## Next Steps
 
