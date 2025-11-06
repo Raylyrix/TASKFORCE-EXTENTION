@@ -200,8 +200,8 @@ async function getUserEmail() {
   }
 }
 
-// Get refresh token
-async function getRefreshToken() {
+// Get access token (for immediate use)
+async function getAccessToken() {
   try {
     const token = await new Promise((resolve, reject) => {
       chrome.identity.getAuthToken({ interactive: false }, (token) => {
@@ -214,7 +214,7 @@ async function getRefreshToken() {
     });
     return token;
   } catch (error) {
-    console.error('Get refresh token error:', error);
+    console.error('Get access token error:', error);
     throw error;
   }
 }
@@ -227,6 +227,34 @@ async function initiateBackendOAuth() {
     // User completes consent; we will poll registration status later
   } catch (e) {
     console.error('Failed to initiate backend OAuth:', e);
+  }
+}
+
+// Register user using OAuth callback (for refresh token flow)
+// This is called after user completes OAuth on backend
+async function registerUserAfterOAuth(email) {
+  try {
+    // Get user ID from backend by checking registration status
+    const response = await fetch(`${BACKEND_URL}/api/auth/check?email=${encodeURIComponent(email)}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.userId) {
+        chrome.storage.local.set({ 
+          backendUserId: data.userId,
+          backendConnected: true,
+          backendStatus: 'ready'
+        });
+        return { success: true, userId: data.userId };
+      }
+    }
+    return { success: false };
+  } catch (error) {
+    console.error('Register after OAuth error:', error);
+    return { success: false };
   }
 }
 
@@ -246,24 +274,26 @@ async function initializeBackend() {
       return false;
     }
     
-    // Try to register with existing token (legacy). If backend needs refresh token,
-    // user can run initiateBackendOAuth() from UI to complete consent.
-    const refreshToken = await getRefreshToken();
-    const result = await registerUserBackend(userEmail, refreshToken);
-    
-    if (result.success) {
-      backendUserId = result.userId;
-      console.log('✅ User registered with backend:', backendUserId);
-      
-      chrome.storage.local.set({ 
-        backendUserId: result.userId,
-        backendConnected: true,
-        backendStatus: 'ready'
-      });
-      
-      return true;
+    // Check if user is already registered
+    const checkResponse = await fetch(`${BACKEND_URL}/api/auth/check?email=${encodeURIComponent(userEmail)}`);
+    if (checkResponse.ok) {
+      const checkData = await checkResponse.json();
+      if (checkData.registered && checkData.userId) {
+        backendUserId = checkData.userId;
+        console.log('✅ User already registered with backend:', backendUserId);
+        
+        chrome.storage.local.set({ 
+          backendUserId: checkData.userId,
+          backendConnected: true,
+          backendStatus: 'ready'
+        });
+        
+        return true;
+      }
     }
     
+    // User not registered - they need to complete OAuth flow
+    console.log('⚠️ User not registered. OAuth flow required.');
     return false;
   } catch (error) {
     console.error('❌ Backend initialization error:', error);
@@ -378,25 +408,57 @@ async function scheduleEmailLocally(email, scheduledFor) {
 
 // Handle bulk email sending with hybrid system
 async function handleBulkSendHybrid(emails, startTime, delay) {
-  chrome.storage.local.get(['backendStatus', 'backendUserId', 'activeBulkCampaign'], async (result) => {
-    const isBackendReady = result.backendStatus === 'ready' && result.backendUserId;
-    const activeCampaign = result.activeBulkCampaign || null;
-    
-    if (isBackendReady && !activeCampaign) {
-      // Backend ready and no active local campaign - use backend
-      await startBulkSendOnBackend(emails, startTime, delay);
-      await showBackendActiveNotification(`Bulk send started on backend! You can turn off your PC. ${emails.length} emails will send automatically.`);
-    } else if (activeCampaign) {
-      // Active local campaign - keep using local
-      console.log('Active local campaign detected, continuing locally');
-    } else {
-      // Backend not ready - start local campaign
-      await startBulkSendLocally(emails, startTime, delay);
-      await showLocalModeNotification(`⚠️ Bulk send started locally - DO NOT turn off PC! Monitoring backend...`);
-      
-      // Start backend monitoring for migration
-      monitorBulkSendBackendAvailable(emails.length);
-    }
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(['backendStatus', 'backendUserId', 'activeBulkCampaign'], async (result) => {
+      try {
+        const isBackendReady = result.backendStatus === 'ready' && result.backendUserId;
+        const activeCampaign = result.activeBulkCampaign || null;
+        
+        if (isBackendReady && !activeCampaign) {
+          // Backend ready and no active local campaign - use backend
+          console.log('📤 Using backend for bulk send');
+          const data = await startBulkSendOnBackend(emails, startTime, delay);
+          await showBackendActiveNotification(`Bulk send started on backend! You can turn off your PC. ${emails.length} emails will send automatically.`);
+          resolve(data);
+        } else if (activeCampaign) {
+          // Active local campaign - keep using local
+          console.log('Active local campaign detected, continuing locally');
+          await startBulkSendLocally(emails, startTime, delay);
+          resolve({ success: true, backend: false });
+        } else {
+          // Backend not ready - check health first
+          console.log('⚠️ Backend status unclear, checking health...');
+          const healthCheck = await checkBackendHealthDetailed();
+          
+          if (healthCheck.status === 'ready') {
+            // Backend is actually ready, try to use it
+            try {
+              const data = await startBulkSendOnBackend(emails, startTime, delay);
+              await showBackendActiveNotification(`Bulk send started on backend! You can turn off your PC. ${emails.length} emails will send automatically.`);
+              resolve(data);
+            } catch (error) {
+              console.error('Backend send failed, falling back to local:', error);
+              await startBulkSendLocally(emails, startTime, delay);
+              await showLocalModeNotification(`⚠️ Bulk send started locally - DO NOT turn off PC! Monitoring backend...`);
+              monitorBulkSendBackendAvailable(emails.length);
+              resolve({ success: true, backend: false, error: error.message });
+            }
+          } else {
+            // Backend not ready - start local campaign
+            console.log('📤 Using local fallback for bulk send');
+            await startBulkSendLocally(emails, startTime, delay);
+            await showLocalModeNotification(`⚠️ Bulk send started locally - DO NOT turn off PC! Monitoring backend...`);
+            
+            // Start backend monitoring for migration
+            monitorBulkSendBackendAvailable(emails.length);
+            resolve({ success: true, backend: false });
+          }
+        }
+      } catch (error) {
+        console.error('❌ Bulk send hybrid error:', error);
+        reject(error);
+      }
+    });
   });
 }
 
@@ -442,36 +504,48 @@ async function migrateActiveBulkSendToBackend() {
 
 // Start bulk send on backend
 async function startBulkSendOnBackend(emails, startTime, delay) {
-  try {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.get('backendUserId', async (result) => {
-      if (!result.backendUserId) {
-        throw new Error('No backend user ID');
+      try {
+        if (!result.backendUserId) {
+          // Try to register user first via OAuth flow
+          console.log('⚠️ No backend user ID, initiating OAuth flow...');
+          const userEmail = await getUserEmail();
+          if (!userEmail) {
+            throw new Error('No backend user ID and cannot get user email. Please connect to backend first via OAuth.');
+          }
+          
+          // Initiate OAuth flow - user needs to complete it
+          initiateBackendOAuth();
+          throw new Error('Backend user not registered. Please complete the OAuth flow that just opened, then try again.');
+        }
+        
+        // Use bulk endpoint
+        const response = await fetch(`${BACKEND_URL}/api/emails/schedule-bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: result.backendUserId,
+            emails: emails,
+            startTime: startTime instanceof Date ? startTime.toISOString() : startTime,
+            delay: delay
+          })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`Bulk scheduling failed: ${response.status} - ${errorData.error || response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log(`✅ Bulk send scheduled on backend: ${data.count} emails`);
+        resolve(data);
+      } catch (error) {
+        console.error('❌ Bulk send on backend error:', error);
+        reject(error);
       }
-      
-      // Use bulk endpoint
-      const response = await fetch(`${BACKEND_URL}/api/emails/schedule-bulk`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: result.backendUserId,
-          emails: emails,
-          startTime: startTime.toISOString(),
-          delay: delay
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Bulk scheduling failed: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log(`✅ Bulk send scheduled on backend: ${data.count} emails`);
-      return data;
     });
-  } catch (error) {
-    console.error('Bulk send on backend error:', error);
-    throw error;
-  }
+  });
 }
 
 // Start bulk send locally

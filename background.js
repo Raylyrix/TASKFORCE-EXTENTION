@@ -106,17 +106,6 @@ async function sendScheduledEmail(emailId) {
     const cc = email.cc ? email.cc.split(',').map(e => e.trim()) : [];
     const bcc = email.bcc ? email.bcc.split(',').map(e => e.trim()) : [];
     
-    // Pre-send validation (gentle block)
-    const val = validateEmailForSend({ to: email.to, subject: email.subject, body: email.body });
-    if (!val.ok) {
-      console.warn('Validation failed for scheduled email:', val.reason);
-      notifyEmailError && notifyEmailError('Validation failed: ' + val.reason);
-      scheduledEmails[emailIndex].status = 'error';
-      scheduledEmails[emailIndex].error = val.reason;
-      await chrome.storage.local.set({ scheduledEmails });
-      return;
-    }
-
     // Send email via Gmail API
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
@@ -211,24 +200,9 @@ async function processFollowUpRule(rule) {
       return;
     }
     
-    // Build Gmail search query from rule (labels/folders/query)
-    let q = 'from:me';
-    try {
-      if (rule && (rule.gmailQuery || (Array.isArray(rule.labels) && rule.labels.length))) {
-        const parts = [];
-        if (rule.gmailQuery) parts.push(rule.gmailQuery);
-        if (Array.isArray(rule.labels)) {
-          rule.labels.forEach((l) => {
-            if (l && typeof l === 'string') parts.push(`label:${l}`);
-          });
-        }
-        if (parts.length) q = parts.join(' ');
-      }
-    } catch (_) { /* ignore */ }
-
-    // Get recent messages matching query
+    // Get recent sent messages
     const response = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50&q=${encodeURIComponent(q)}`,
+      'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50&q=from:me',
       {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -335,33 +309,34 @@ async function sendFollowUpEmail(originalMessage, rule, token) {
 
 // Get OAuth access token
 async function getAccessToken(interactive = false) {
-  function getTokenOnce(flag) {
-    return new Promise((resolve, reject) => {
-      chrome.identity.getAuthToken({ interactive: flag }, (token) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve(token);
+  return new Promise((resolve, reject) => {
+    chrome.identity.getAuthToken({ interactive }, (token) => {
+      if (chrome.runtime.lastError) {
+        const error = chrome.runtime.lastError;
+        
+        // Special handling for authentication errors
+        if (error.message && (error.message.includes('OAuth2') || error.message.includes('AUTH') || error.message.includes('invalid_grant'))) {
+          console.log('Authentication required - will trigger popup');
+          // Store that auth is needed
+          chrome.storage.local.set({ needsAuth: true });
+          
+          // Auto-open popup if not interactive already
+          if (!interactive) {
+            openPopupForAuth();
+          }
+          
+          reject(new Error('Authentication required'));
+          return;
         }
-      });
+        
+        reject(error);
+      } else {
+        // Clear needs auth flag if we got token
+        chrome.storage.local.set({ needsAuth: false });
+        resolve(token);
+      }
     });
-  }
-
-  try {
-    const token = await getTokenOnce(interactive);
-    chrome.storage.local.set({ needsAuth: false });
-    return token;
-  } catch (error) {
-    const msg = (error?.message || '').toLowerCase();
-    if (!interactive && (msg.includes('oauth') || msg.includes('auth') || msg.includes('invalid_grant') || msg.includes('not signed in'))) {
-      chrome.storage.local.set({ needsAuth: true });
-      openPopupForAuth();
-      const token = await getTokenOnce(true);
-      chrome.storage.local.set({ needsAuth: false });
-      return token;
-    }
-    throw error;
-  }
+  });
 }
 
 // Auto-open popup when authentication is required
@@ -394,18 +369,10 @@ function openPopupForAuth() {
 
 // Create raw email format for Gmail API
 function createRawEmail(to, subject, body, cc = [], bcc = []) {
-  try {
-    // Inject tracking pixel and link-wrapping when enabled and backend URL is configured
-    if (AEM_SETTINGS?.enableTracking && typeof BACKEND_URL !== 'undefined' && BACKEND_URL) {
-      const mid = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-      body = buildTrackedBody(body, mid);
-    }
-    // Append TaskForce watermark
-    body = appendWatermark(body);
-  } catch (_) {
-    // Non-fatal: fall through without tracking injection
-  }
   const headers = [];
+  
+  // Add From header (will be set by Gmail)
+  headers.push(`From: ${to}`); // Placeholder, Gmail will replace
   
   // Add To header
   if (to && Array.isArray(to)) {
@@ -437,170 +404,6 @@ function createRawEmail(to, subject, body, cc = [], bcc = []) {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
-}
-
-// Message handler addition for labels fetch
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request && request.action === 'fetchGmailLabels') {
-    (async () => {
-      try {
-        const labels = await (async function() {
-          const token = await getAccessToken();
-          if (!token) throw new Error('Not authenticated');
-          const resp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (!resp.ok) throw new Error(`Labels fetch failed (${resp.status})`);
-          const data = await resp.json();
-          return Array.isArray(data.labels) ? data.labels : [];
-        })();
-        sendResponse({ success: true, labels });
-      } catch (e) {
-        sendResponse({ success: false, error: e?.message || 'Labels fetch error' });
-      }
-    })();
-    return true;
-  }
-  
-  if (request && request.action === 'createMeetEventsBulk') {
-    (async () => {
-      try {
-        const { recipients = [], title = 'Meeting', startTime, durationMin = 30 } = request;
-        const token = await getAccessToken(true);
-        if (!token) {
-          sendResponse({ success: false, error: 'Not authenticated' });
-          return;
-        }
-        const start = startTime ? new Date(startTime) : new Date(Date.now() + 60 * 60 * 1000);
-        const end = new Date(start.getTime() + (parseInt(durationMin, 10) || 30) * 60 * 1000);
-        const links = {};
-        for (const r of recipients) {
-          const event = {
-            summary: title.replace(/\{\{\s*email\s*\}\}/ig, r),
-            start: { dateTime: start.toISOString() },
-            end: { dateTime: end.toISOString() },
-            attendees: [{ email: r }],
-            conferenceData: {
-              createRequest: {
-                requestId: `${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
-                conferenceSolutionKey: { type: 'hangoutsMeet' }
-              }
-            }
-          };
-          const resp = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify(event)
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            const meet = (data.conferenceData && data.conferenceData.entryPoints && data.conferenceData.entryPoints.find(e => e.entryPointType === 'video'))?.uri || '';
-            links[r] = meet || data.hangoutLink || '';
-          } else {
-            links[r] = '';
-          }
-          await new Promise(res => setTimeout(res, 150));
-        }
-        sendResponse({ success: true, links, start: start.toISOString(), end: end.toISOString() });
-      } catch (e) {
-        sendResponse({ success: false, error: e?.message || 'Failed to create events' });
-      }
-    })();
-    return true;
-  }
-
-  if (request && request.action === 'generateAvailabilitySlots') {
-    (async () => {
-      try {
-        const days = request.daysAhead || 14;
-        const windowStart = request.windowStart || '09:00';
-        const windowEnd = request.windowEnd || '17:00';
-        const slotMinutes = request.slotMinutes || 30;
-        const gapMinutes = request.gapMinutes || 0;
-
-        const token = await getAccessToken(true);
-        if (!token) { sendResponse({ success: false, error: 'Not authenticated' }); return; }
-
-        const now = new Date();
-        const timeMin = now.toISOString();
-        const timeMax = new Date(now.getTime() + days*24*60*60*1000).toISOString();
-
-        // Fetch primary calendar events (busy times)
-        const calResp = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&orderBy=startTime`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const calJson = calResp.ok ? await calResp.json() : { items: [] };
-        const busy = (calJson.items||[]).map(e => ({
-          start: new Date(e.start?.dateTime || e.start?.date),
-          end: new Date(e.end?.dateTime || e.end?.date)
-        }));
-
-        // Generate slots
-        const slots = [];
-        for (let d = 0; d < days; d++) {
-          const day = new Date(now.getFullYear(), now.getMonth(), now.getDate()+d);
-          const [sh, sm] = windowStart.split(':').map(n=>parseInt(n,10));
-          const [eh, em] = windowEnd.split(':').map(n=>parseInt(n,10));
-          let cursor = new Date(day.getFullYear(), day.getMonth(), day.getDate(), sh, sm, 0);
-          const endDay = new Date(day.getFullYear(), day.getMonth(), day.getDate(), eh, em, 0);
-          while (cursor < endDay) {
-            const slotStart = new Date(cursor);
-            const slotEnd = new Date(cursor.getTime() + slotMinutes*60*1000);
-            cursor = new Date(slotEnd.getTime() + gapMinutes*60*1000);
-            if (slotEnd > endDay) break;
-            // skip past slots
-            if (slotStart < now) continue;
-            // conflict check
-            const conflict = busy.some(b => !(slotEnd <= b.start || slotStart >= b.end));
-            if (!conflict) {
-              slots.push({ start: slotStart.toISOString(), end: slotEnd.toISOString() });
-            }
-            if (slots.length >= 1000) break;
-          }
-          if (slots.length >= 1000) break;
-        }
-        sendResponse({ success: true, slots });
-      } catch (e) {
-        sendResponse({ success: false, error: e?.message || 'Availability generation failed' });
-      }
-    })();
-    return true;
-  }
-});
-
-// Helper to wrap links and append a 1x1 tracking pixel via backend
-function buildTrackedBody(html, messageId) {
-  try {
-    const base = (typeof BACKEND_URL !== 'undefined' ? BACKEND_URL : '').replace(/\/$/, '');
-    if (!base) return html;
-    // Replace hrefs with backend redirect
-    const replaced = html.replace(/href=\"(https?:\/\/[^\"]+)\"/gi, (m, url) => {
-      try {
-        const wrapped = `${base}/t/c?m=${encodeURIComponent(messageId)}&u=${encodeURIComponent(url)}`;
-        return `href="${wrapped}"`;
-      } catch (_) {
-        return m;
-      }
-    });
-    const pixel = `<img src="${base}/t/o?m=${encodeURIComponent(messageId)}" width="1" height="1" style="display:none;"/>`;
-    // Ensure pixel appended once
-    if (replaced.includes('/t/o?m=')) return replaced;
-    return replaced + `\n${pixel}`;
-  } catch (_) {
-    return html;
-  }
-}
-
-// Append TaskForce watermark footer if not already present
-function appendWatermark(html) {
-  try {
-    if (typeof html !== 'string') return html;
-    if (html.toLowerCase().includes('taskforce automated mailer')) return html;
-    const footer = `\n<div style="margin-top:16px;font-size:11px;line-height:1.3;color:#5f6368;">Sent using <strong>TaskForce Automated Mailer</strong></div>`;
-    return html + footer;
-  } catch (_) {
-    return html;
-  }
 }
 
 // Get next recurring date
@@ -917,14 +720,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const start = request.startTime ? new Date(request.startTime) : new Date();
       if (typeof handleBulkSendHybrid === 'function') {
         handleBulkSendHybrid(request.emails || [], start, request.delay || 0)
-          .then(() => sendResponse({ success: true }))
-          .catch((err) => sendResponse({ success: false, error: err?.message || 'Hybrid send failed' }));
-        return true;
+          .then((result) => {
+            console.log('✅ Bulk send hybrid completed:', result);
+            sendResponse({ success: true, result: result || { backend: true } });
+          })
+          .catch((err) => {
+            console.error('❌ Bulk send hybrid error:', err);
+            sendResponse({ success: false, error: err?.message || 'Hybrid send failed' });
+          });
+        return true; // Keep channel open for async
       }
-      sendResponse({ success: false, error: 'Hybrid handler not available' });
+      sendResponse({ success: false, error: 'Hybrid handler not available. Please reload extension.' });
     } catch (e) {
+      console.error('❌ handleBulkSendHybrid exception:', e);
       sendResponse({ success: false, error: e?.message || 'Error' });
     }
+    return true;
   }
 
   if (request.action === 'initiateBackendOAuth') {
@@ -1090,7 +901,6 @@ async function recordEmailOpen(messageId) {
       email.opens = (email.opens || 0) + 1;
       await chrome.storage.local.set({ trackedEmails });
       console.log('Email opened:', messageId);
-      try { await addGmailLabel(messageId, 'TaskForce/Opened'); } catch(_){}
     }
   } catch (error) {
     console.error('Error recording email open:', error);
@@ -1108,37 +918,10 @@ async function recordLinkClick(messageId) {
       email.clicks = (email.clicks || 0) + 1;
       await chrome.storage.local.set({ trackedEmails });
       console.log('Link clicked:', messageId);
-      try { await addGmailLabel(messageId, 'TaskForce/Clicked'); } catch(_){}
     }
   } catch (error) {
     console.error('Error recording click:', error);
   }
-}
-
-// Ensure label exists and add to message
-async function addGmailLabel(messageId, labelName) {
-  const token = await getAccessToken();
-  if (!token) throw new Error('No token');
-  const labelId = await ensureLabel(labelName, token);
-  await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ addLabelIds: [labelId] })
-  });
-}
-
-async function ensureLabel(name, token) {
-  const list = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', { headers: { 'Authorization': `Bearer ${token}` } });
-  const data = await list.json();
-  const existing = (data.labels||[]).find(l => l.name === name);
-  if (existing) return existing.id;
-  const resp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, labelListVisibility: 'labelShow', messageListVisibility: 'show' })
-  });
-  const created = await resp.json();
-  return created.id;
 }
 
 // Fetch data from Google Sheets
@@ -1231,9 +1014,6 @@ async function startBulkSending(emails, startTime, delay) {
       const email = emails[i];
       
       try {
-        // Validate each email gently; skip invalid items
-        const v = validateEmailForSend(email);
-        if (!v.ok) { console.warn('Skipping invalid email:', v.reason); failedCount++; continue; }
         // Check daily limit
         if (!(await checkDailyLimit())) {
           console.warn('Daily limit reached, stopping');
@@ -1620,3 +1400,4 @@ async function upsertContact(contactData) {
     throw error;
   }
 }
+

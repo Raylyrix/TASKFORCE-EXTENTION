@@ -525,20 +525,52 @@ function showBulkComposerModal() {
     const startTime = schedule && startVal ? new Date(startVal).toISOString() : new Date().toISOString();
 
     chrome.runtime.sendMessage({ action: 'getBackendStatus' }, (statusResp) => {
+      if (chrome.runtime.lastError) {
+        alert('Extension error: ' + chrome.runtime.lastError.message);
+        return;
+      }
+      
       if (statusResp && statusResp.success && statusResp.status !== 'ready') {
         const proceed = confirm('Backend appears offline. Proceed in local mode? You must keep your PC on.');
         if (!proceed) return;
       }
+      
       chrome.runtime.sendMessage({
         action: 'handleBulkSendHybrid',
         emails,
         startTime,
         delay: delayMs
       }, (response) => {
-        if (!response || response.error || !response.success) {
-          alert('Error: ' + (response && response.error ? response.error : 'Failed'));
+        if (chrome.runtime.lastError) {
+          alert('Error connecting to extension: ' + chrome.runtime.lastError.message);
           return;
         }
+        
+        if (!response) {
+          alert('No response from extension. Please check the console and try again.');
+          return;
+        }
+        
+        if (!response.success) {
+          const errorMsg = response.error || 'Unknown error';
+          alert('Error sending emails: ' + errorMsg);
+          
+          // If user not registered, guide them to OAuth
+          if (errorMsg.includes('not registered') || errorMsg.includes('connect to backend')) {
+            if (confirm('You need to connect to the backend first. Open OAuth connection page?')) {
+              chrome.runtime.sendMessage({ action: 'initiateBackendOAuth' });
+            }
+          }
+          return;
+        }
+        
+        // Success!
+        const backendUsed = response.result && response.result.backend !== false;
+        const message = backendUsed 
+          ? `✅ ${emails.length} emails scheduled on backend! You can turn off your PC - emails will send automatically.`
+          : `✅ ${emails.length} emails scheduled locally! Please keep your PC on.`;
+        
+        alert(message);
         overlay.remove();
       });
     });

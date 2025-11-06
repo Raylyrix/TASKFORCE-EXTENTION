@@ -329,7 +329,18 @@ app.get('/api/auth/callback', async (req, res) => {
 
     const { access_token, refresh_token, id_token } = tokenResp.data;
     if (!refresh_token) {
-      console.warn('No refresh_token returned. Ensure prompt=consent & access_type=offline and a new consent session.');
+      console.warn('⚠️ No refresh_token returned. Ensure prompt=consent & access_type=offline and a new consent session.');
+      return res.status(400).send(`
+        <html>
+          <head><title>Authentication Failed</title></head>
+          <body style="font-family:Arial; padding:24px;">
+            <h2>❌ Authentication Failed</h2>
+            <p>No refresh token was received. This usually means you've already granted access before.</p>
+            <p><strong>Solution:</strong> Please revoke access in your Google Account settings and try again, or ensure you're using a fresh OAuth session.</p>
+            <p><a href="https://myaccount.google.com/permissions">Manage Google Account Permissions</a></p>
+          </body>
+        </html>
+      `);
     }
 
     // Get user email via tokeninfo / userinfo
@@ -353,19 +364,65 @@ app.get('/api/auth/callback', async (req, res) => {
       await pool.query('INSERT INTO email_stats (user_id) VALUES ($1)', [userId]);
     }
 
-    // Simple success page
+    console.log(`✅ User registered/updated: ${email} (ID: ${userId})`);
+    
+    // Success page with user ID and instructions
     res.send(`
       <html>
-        <head><title>Connected</title></head>
-        <body style="font-family:Arial; padding:24px;">
-          <h2>✅ Connected</h2>
-          <p>Your account <b>${email}</b> is now connected. You can close this tab and return to the extension.</p>
+        <head>
+          <title>Connected</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; max-width: 600px; margin: 0 auto; }
+            .success { background: #e8f5e9; padding: 16px; border-radius: 8px; margin: 20px 0; }
+            .info { background: #e3f2fd; padding: 16px; border-radius: 8px; margin: 20px 0; }
+            code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+          </style>
+        </head>
+        <body>
+          <h2 style="color:#34a853;">✅ Successfully Connected!</h2>
+          <div class="success">
+            <p><strong>Email:</strong> ${email}</p>
+            <p><strong>User ID:</strong> <code>${userId}</code></p>
+            <p>Your account is now connected to the backend server.</p>
+          </div>
+          <div class="info">
+            <h3>Next Steps:</h3>
+            <ol>
+              <li>Close this tab</li>
+              <li>Return to the extension</li>
+              <li>Try sending/scheduling emails - they will now work!</li>
+            </ol>
+          </div>
+          <p style="color:#5f6368; font-size:12px; margin-top:24px;">
+            You can now schedule emails and they will send automatically even when your PC is off.
+          </p>
         </body>
       </html>
     `);
   } catch (error) {
     console.error('OAuth callback error:', error.response?.data || error.message);
     res.status(500).send('Authentication failed');
+  }
+});
+
+// Check if user is registered
+app.get('/api/auth/check', async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email || !validateEmailAddress(email)) {
+      return res.status(400).json({ error: 'Valid email required' });
+    }
+    
+    const result = await pool.query('SELECT id, email FROM users WHERE email = $1', [email]);
+    
+    if (result.rows.length > 0) {
+      return res.json({ registered: true, userId: result.rows[0].id, email: result.rows[0].email });
+    }
+    
+    return res.json({ registered: false });
+  } catch (error) {
+    console.error('Check user error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -1085,7 +1142,18 @@ async function sendEmail(emailRecord) {
         throw new Error('User not found');
       }
 
-      const refreshToken = userResult.rows[0].refresh_token;
+      const encryptedRefreshToken = userResult.rows[0].refresh_token;
+      
+      if (!encryptedRefreshToken || encryptedRefreshToken.trim() === '') {
+        throw new Error('No refresh token found for user. Please re-authenticate via OAuth.');
+      }
+
+      // Decrypt refresh token
+      const refreshToken = decrypt(encryptedRefreshToken);
+      
+      if (!refreshToken || refreshToken.trim() === '') {
+        throw new Error('Invalid refresh token. Please re-authenticate via OAuth.');
+      }
 
       // Get fresh access token
       const accessToken = await getAccessToken(refreshToken);
@@ -1153,12 +1221,20 @@ async function sendEmail(emailRecord) {
       return true;
     } catch (error) {
       const transient = isTransient(error);
-      console.warn(`❌ Send failed (attempt ${attempt}/${maxAttempts}) id=${emailRecord.id} transient=${transient}:`, error.message);
+      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+      console.warn(`❌ Send failed (attempt ${attempt}/${maxAttempts}) id=${emailRecord.id} transient=${transient}:`, errorMsg);
+      console.warn('Full error:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        stack: error.stack
+      });
+      
       if (attempt >= maxAttempts || !transient) {
         // Final failure
         await pool.query(
           'UPDATE scheduled_emails SET status = $1, error_message = $2 WHERE id = $3',
-          ['failed', error.message, emailRecord.id]
+          ['failed', errorMsg.substring(0, 500), emailRecord.id]
         );
         await pool.query(
           'UPDATE email_stats SET failed_count = failed_count + 1 WHERE user_id = $1',
@@ -1194,13 +1270,13 @@ async function sendEmail(emailRecord) {
 // Run every minute
 cron.schedule('* * * * *', async () => {
   try {
-    console.log('⏰ Checking for due emails...');
-    
     const now = new Date();
+    console.log(`⏰ Checking for due emails at ${now.toISOString()}...`);
     
     // Get all due emails
     const result = await pool.query(
-      `SELECT * FROM scheduled_emails 
+      `SELECT id, user_id, to_email, subject, scheduled_for, status, created_at
+       FROM scheduled_emails 
        WHERE status = 'scheduled' 
        AND scheduled_for <= $1
        ORDER BY scheduled_for ASC
@@ -1209,17 +1285,34 @@ cron.schedule('* * * * *', async () => {
     );
 
     if (result.rows.length > 0) {
-      console.log(`📬 Found ${result.rows.length} due email(s)`);
+      console.log(`📬 Found ${result.rows.length} due email(s):`);
+      result.rows.forEach((email, idx) => {
+        console.log(`  ${idx + 1}. ID ${email.id} to ${email.to_email} (scheduled for ${email.scheduled_for})`);
+      });
       
       // Send each email
       for (const email of result.rows) {
-        await sendEmail(email);
-        // Rate limiting: wait 1 second between emails
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+          await sendEmail(email);
+          // Rate limiting: wait 1 second between emails
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (emailError) {
+          console.error(`❌ Failed to send email ID ${email.id}:`, emailError.message);
+          // Continue with next email even if one fails
+        }
+      }
+    } else {
+      // Log that we checked but found nothing (less verbose)
+      const totalScheduled = await pool.query(
+        `SELECT COUNT(*) as count FROM scheduled_emails WHERE status = 'scheduled'`
+      );
+      if (totalScheduled.rows[0].count > 0) {
+        console.log(`⏰ No emails due yet. ${totalScheduled.rows[0].count} email(s) still scheduled.`);
       }
     }
   } catch (error) {
     console.error('❌ Cron job error:', error);
+    console.error('Error stack:', error.stack);
   }
 });
 
@@ -1238,7 +1331,7 @@ cron.schedule('0 3 * * *', async () => {
 // START SERVER
 // ============================================
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log('🚀 TaskForce Email Backend Server Started!');
