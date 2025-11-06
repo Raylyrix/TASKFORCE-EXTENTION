@@ -255,6 +255,52 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Test endpoint - send a test email (for debugging)
+app.post('/api/test/send-email', async (req, res) => {
+  try {
+    const { userId, to, subject, body } = req.body;
+    
+    if (!userId || !to || !subject || !body) {
+      return res.status(400).json({ error: 'userId, to, subject, and body are required' });
+    }
+    
+    // Get user's refresh token
+    const userResult = await pool.query('SELECT refresh_token FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const encryptedRefreshToken = userResult.rows[0].refresh_token;
+    if (!encryptedRefreshToken || encryptedRefreshToken.trim() === '') {
+      return res.status(400).json({ error: 'No refresh token found. Please complete OAuth flow.' });
+    }
+    
+    const refreshToken = decrypt(encryptedRefreshToken);
+    const accessToken = await getAccessToken(refreshToken);
+    
+    const raw = createRawEmail(to, subject, body);
+    
+    const response = await axios.post(
+      'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+      { raw },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    res.json({ success: true, messageId: response.data.id });
+  } catch (error) {
+    console.error('Test send error:', error);
+    res.status(500).json({ 
+      error: error.message,
+      details: error.response?.data || {}
+    });
+  }
+});
+
 // ============================================
 // OAUTH 2.0 AUTHORIZATION CODE FLOW (REFRESH TOKEN)
 // ============================================
