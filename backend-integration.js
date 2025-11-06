@@ -1,8 +1,10 @@
 ﻿// Advanced Backend Integration with Health Checks & Hybrid Sending
 // TaskForce Email Manager
 
-// Configuration: lock to deployed Render domain (update if different)
-const BACKEND_URL = 'https://taskforce.onrender.com';
+// Configuration - CHANGE THIS TO YOUR BACKEND URL
+// For local development, use: http://localhost:3000
+// For production, use your deployed backend URL
+const BACKEND_URL = 'http://localhost:3000'; // Update this to your backend URL
 
 // Backend status tracking
 let backendStatus = 'unknown'; // 'ready', 'offline', 'checking', 'unknown'
@@ -81,7 +83,7 @@ function startBackendMonitoring() {
   // Then check every 30 seconds
   backendCheckInterval = setInterval(monitorBackendStatus, 30000);
   
-  console.log('ðŸ” Backend monitoring started');
+  console.log('🔍 Backend monitoring started');
 }
 
 // Monitor backend status and handle transitions
@@ -95,7 +97,7 @@ async function monitorBackendStatus() {
     handleBackendStatusChange(prevStatus, backendStatus);
   }
   
-  console.log(`ðŸ“Š Backend status: ${backendStatus} - ${healthCheck.message}`);
+  console.log(`📊 Backend status: ${backendStatus} - ${healthCheck.message}`);
   
   // Store status
   chrome.storage.local.set({ 
@@ -107,7 +109,7 @@ async function monitorBackendStatus() {
 
 // Handle backend status transitions
 async function handleBackendStatusChange(oldStatus, newStatus) {
-  console.log(`ðŸ”„ Backend status changed: ${oldStatus} â†’ ${newStatus}`);
+  console.log(`🔄 Backend status changed: ${oldStatus} → ${newStatus}`);
   
   if (newStatus === 'ready' && oldStatus === 'offline') {
     // Backend came online - migrate pending emails
@@ -122,7 +124,7 @@ async function handleBackendStatusChange(oldStatus, newStatus) {
 
 // Handle backend reconnection
 async function handleBackendReconnected() {
-  console.log('ðŸŽ‰ Backend reconnected!');
+  console.log('🎉 Backend reconnected!');
   
   // Initialize user registration
   await initializeBackend();
@@ -142,7 +144,7 @@ function showBackendOfflineNotification() {
     type: 'basic',
     iconUrl: 'icons/icon128.png',
     title: 'TaskForce Email Manager',
-    message: 'âš ï¸ Backend offline - Don\'t turn off your PC! Emails will only send with browser open.',
+    message: '⚠️ Backend offline - Don\'t turn off your PC! Emails will only send with browser open.',
     buttons: [{ title: 'Check Status' }]
   });
 }
@@ -231,16 +233,16 @@ async function initiateBackendOAuth() {
 // Initialize backend connection
 async function initializeBackend() {
   try {
-    console.log('ðŸ”Œ Initializing backend connection...');
+    console.log('🔌 Initializing backend connection...');
     
     if (backendStatus !== 'ready') {
-      console.warn('âš ï¸ Backend not ready, skipping registration');
+      console.warn('⚠️ Backend not ready, skipping registration');
       return false;
     }
     
     const userEmail = await getUserEmail();
     if (!userEmail) {
-      console.warn('âš ï¸ No user email found');
+      console.warn('⚠️ No user email found');
       return false;
     }
     
@@ -251,7 +253,7 @@ async function initializeBackend() {
     
     if (result.success) {
       backendUserId = result.userId;
-      console.log('âœ… User registered with backend:', backendUserId);
+      console.log('✅ User registered with backend:', backendUserId);
       
       chrome.storage.local.set({ 
         backendUserId: result.userId,
@@ -264,7 +266,7 @@ async function initializeBackend() {
     
     return false;
   } catch (error) {
-    console.error('âŒ Backend initialization error:', error);
+    console.error('❌ Backend initialization error:', error);
     chrome.storage.local.set({ backendConnected: false });
     return false;
   }
@@ -277,7 +279,7 @@ async function initializeBackend() {
 // Schedule email with smart routing
 async function scheduleEmailHybrid(email, scheduledFor, origin = 'compose') {
   try {
-    console.log('ðŸ“§ Scheduling email with hybrid system...');
+    console.log('📧 Scheduling email with hybrid system...');
     
     // Get backend status
     await chrome.storage.local.get(['backendStatus', 'backendUserId'], async (result) => {
@@ -303,7 +305,7 @@ async function scheduleEmailHybrid(email, scheduledFor, origin = 'compose') {
         await scheduleEmailLocally(email, scheduledFor);
         
         // Show warning
-        await showLocalModeNotification('âš ï¸ Backend offline - Please DO NOT close or turn off your PC!');
+        await showLocalModeNotification('⚠️ Backend offline - Please DO NOT close or turn off your PC!');
         
         // Store for later migration (persistent)
         await addPendingEmail(email, scheduledFor);
@@ -312,7 +314,7 @@ async function scheduleEmailHybrid(email, scheduledFor, origin = 'compose') {
   } catch (error) {
     console.error('Schedule email error:', error);
     await scheduleEmailLocally(email, scheduledFor);
-    await showLocalModeNotification('âš ï¸ Using local mode - Please keep your PC on');
+    await showLocalModeNotification('⚠️ Using local mode - Please keep your PC on');
   }
 }
 
@@ -334,7 +336,7 @@ async function scheduleEmailOnBackend(userId, emailData, scheduledFor) {
     }
     
     const data = await response.json();
-    console.log('âœ… Email scheduled on backend:', data.emailId);
+    console.log('✅ Email scheduled on backend:', data.emailId);
     return data;
   } catch (error) {
     console.error('Schedule email on backend error:', error);
@@ -363,7 +365,7 @@ async function scheduleEmailLocally(email, scheduledFor) {
           when: new Date(scheduledFor).getTime()
         });
         
-        console.log('âœ… Email scheduled locally:', emailId);
+        console.log('✅ Email scheduled locally:', emailId);
         resolve({ success: true, emailId });
       });
     });
@@ -390,7 +392,7 @@ async function handleBulkSendHybrid(emails, startTime, delay) {
     } else {
       // Backend not ready - start local campaign
       await startBulkSendLocally(emails, startTime, delay);
-      await showLocalModeNotification(`âš ï¸ Bulk send started locally - DO NOT turn off PC! Monitoring backend...`);
+      await showLocalModeNotification(`⚠️ Bulk send started locally - DO NOT turn off PC! Monitoring backend...`);
       
       // Start backend monitoring for migration
       monitorBulkSendBackendAvailable(emails.length);
@@ -431,7 +433,7 @@ async function migrateActiveBulkSendToBackend() {
     // Show notification
     await showBackendMigratedNotification(remaining, campaign.total);
     
-    console.log(`ðŸ”„ Migrating ${remaining} remaining emails to backend`);
+    console.log(`🔄 Migrating ${remaining} remaining emails to backend`);
     
     // Clear local campaign
     chrome.storage.local.set({ activeBulkCampaign: null });
@@ -463,7 +465,7 @@ async function startBulkSendOnBackend(emails, startTime, delay) {
       }
       
       const data = await response.json();
-      console.log(`âœ… Bulk send scheduled on backend: ${data.count} emails`);
+      console.log(`✅ Bulk send scheduled on backend: ${data.count} emails`);
       return data;
     });
   } catch (error) {
@@ -506,7 +508,7 @@ async function showBackendActiveNotification(message) {
   chrome.notifications.create(CONNECT_BACKEND_NOTIFICATION_ID, {
     type: 'basic',
     iconUrl: 'icons/icon128.png',
-    title: 'ðŸš€ TaskForce Email Manager',
+    title: '🚀 TaskForce Email Manager',
     message: message,
     buttons: [{ title: 'Connect Backend' }, { title: 'Close' }]
   });
@@ -514,7 +516,7 @@ async function showBackendActiveNotification(message) {
   // Try to open popup automatically
   chrome.action.openPopup();
   
-  console.log('âœ… Backend Active:', message);
+  console.log('✅ Backend Active:', message);
 }
 
 // Show local mode notification
@@ -522,12 +524,12 @@ async function showLocalModeNotification(message) {
   chrome.notifications.create(LOCAL_MODE_NOTIFICATION_ID, {
     type: 'basic',
     iconUrl: 'icons/icon128.png',
-    title: 'âš ï¸ TaskForce Email Manager',
+    title: '⚠️ TaskForce Email Manager',
     message: message,
     buttons: [{ title: 'Connect Backend' }, { title: 'OK' }]
   });
   
-  console.log('âš ï¸ Local Mode:', message);
+  console.log('⚠️ Local Mode:', message);
 }
 
 // Show migrated notification
@@ -535,8 +537,8 @@ async function showBackendMigratedNotification(remaining, total) {
   chrome.notifications.create({
     type: 'basic',
     iconUrl: 'icons/icon128.png',
-    title: 'ðŸŽ‰ TaskForce Email Manager',
-    message: `Backend is now ready! The remaining ${remaining}/${total} emails will send automatically. You can turn off your PC now! ðŸš€`,
+    title: '🎉 TaskForce Email Manager',
+    message: `Backend is now ready! The remaining ${remaining}/${total} emails will send automatically. You can turn off your PC now! 🚀`,
     buttons: [{ title: 'Close' }]
   });
   
@@ -556,7 +558,7 @@ async function migratePendingEmailsToBackend() {
   chrome.storage.local.get('backendUserId', async (result) => {
     if (!result.backendUserId) return;
     
-    console.log(`ðŸ”„ Migrating ${list.length} pending emails to backend`);
+    console.log(`🔄 Migrating ${list.length} pending emails to backend`);
     
     for (const pending of list) {
       try {
@@ -568,7 +570,7 @@ async function migratePendingEmailsToBackend() {
     
     // Clear pending emails
     await clearPendingEmails();
-    console.log('âœ… Pending emails migrated');
+    console.log('✅ Pending emails migrated');
   });
 }
 
@@ -590,12 +592,12 @@ async function checkAndNotifyActiveSends() {
 
 // Initialize on startup
 chrome.runtime.onStartup.addListener(() => {
-  console.log('ðŸš€ Extension started, initializing backend...');
+  console.log('🚀 Extension started, initializing backend...');
   startBackendMonitoring();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('ðŸ“¦ Extension installed, initializing backend...');
+  console.log('📦 Extension installed, initializing backend...');
   startBackendMonitoring();
 });
 
@@ -613,10 +615,145 @@ chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) =
 // Start monitoring immediately
 startBackendMonitoring();
 
+// ============================================
+// CONTACTS API HELPERS (via Backend)
+// ============================================
+
+// Fetch contacts from backend
+async function fetchContactsFromBackend(userId) {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/contacts/${userId}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to fetch contacts');
+    }
+    return data.contacts || [];
+  } catch (error) {
+    console.error('Fetch contacts from backend error:', error);
+    throw error;
+  }
+}
+
+// Create contact via backend
+async function createContactOnBackend(userId, contactData) {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/contacts/${userId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(contactData)
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to create contact');
+    }
+    return data.contact;
+  } catch (error) {
+    console.error('Create contact on backend error:', error);
+    throw error;
+  }
+}
+
+// Search contacts via backend
+async function searchContactsOnBackend(userId, query) {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/contacts/${userId}/search?query=${encodeURIComponent(query)}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to search contacts');
+    }
+    return data.contacts || [];
+  } catch (error) {
+    console.error('Search contacts on backend error:', error);
+    throw error;
+  }
+}
+
+// ============================================
+// CALENDAR API HELPERS (via Backend)
+// ============================================
+
+// Fetch calendar events from backend
+async function fetchCalendarEventsFromBackend(userId, daysAhead = 7) {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/calendar/${userId}/events?daysAhead=${daysAhead}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to fetch calendar events');
+    }
+    return data.events || [];
+  } catch (error) {
+    console.error('Fetch calendar events from backend error:', error);
+    throw error;
+  }
+}
+
+// Create calendar event via backend
+async function createCalendarEventOnBackend(userId, eventData) {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/calendar/${userId}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(eventData)
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to create calendar event');
+    }
+    return data.event;
+  } catch (error) {
+    console.error('Create calendar event on backend error:', error);
+    throw error;
+  }
+}
+
+// Create calendar event from scheduled email (auto-integration)
+async function createCalendarEventFromEmail(userId, emailId, scheduledFor, durationMinutes = 30) {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/calendar/${userId}/events/from-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        emailId,
+        scheduledFor,
+        durationMinutes
+      })
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to create calendar event from email');
+    }
+    return data.event;
+  } catch (error) {
+    console.error('Create calendar event from email error:', error);
+    throw error;
+  }
+}
+
 // Export functions for use in other files
 if (typeof window !== 'undefined') {
   window.scheduleEmailHybrid = scheduleEmailHybrid;
   window.handleBulkSendHybrid = handleBulkSendHybrid;
   window.checkBackendHealthDetailed = checkBackendHealthDetailed;
   window.initiateBackendOAuth = initiateBackendOAuth;
+  window.fetchContactsFromBackend = fetchContactsFromBackend;
+  window.createContactOnBackend = createContactOnBackend;
+  window.searchContactsOnBackend = searchContactsOnBackend;
+  window.fetchCalendarEventsFromBackend = fetchCalendarEventsFromBackend;
+  window.createCalendarEventOnBackend = createCalendarEventOnBackend;
+  window.createCalendarEventFromEmail = createCalendarEventFromEmail;
 }

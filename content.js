@@ -1,4 +1,4 @@
-// Content script injected into Gmail
+﻿// Content script injected into Gmail
 // TaskForce Email Manager
 
 console.log('TaskForce Email Manager: Content script loaded');
@@ -66,7 +66,7 @@ function showCommandPalette() {
   const box = document.createElement('div');
   box.style.cssText = 'width: min(720px, 90%); background:#fff; border:1px solid #dadce0; border-radius:8px; box-shadow:0 16px 48px rgba(0,0,0,0.2);';
   box.innerHTML = `
-    <div style="padding:8px 12px; border-bottom:1px solid #dadce0; font-weight:600;">TaskForce – Command Palette</div>
+    <div style="padding:8px 12px; border-bottom:1px solid #dadce0; font-weight:600;">TaskForce â€“ Command Palette</div>
     <div style="padding:12px; display:grid; gap:8px;">
       <button data-cmd="bulk" style="text-align:left;padding:10px;border:1px solid #dadce0;border-radius:6px;background:#fff;cursor:pointer;">Open Bulk Composer</button>
       <button data-cmd="availability" style="text-align:left;padding:10px;border:1px solid #dadce0;border-radius:6px;background:#fff;cursor:pointer;">Insert Availability (next 14 days)</button>
@@ -95,7 +95,7 @@ function showCommandPalette() {
           if (!bodyEl) { showComposeRequiredNotification('Open a compose window first.'); return; }
           const list = slots.map(s=>{
             const dt = new Date(s.start);
-            return `${dt.toLocaleString()} – <a href="https://calendar.google.com/calendar/u/0/r/eventedit?dates=${s.start.replace(/[-:]/g,'').split('.')[0].replace('T','/').replace('Z','Z')}/${s.end.replace(/[-:]/g,'').split('.')[0].replace('T','/').replace('Z','Z')}&text=Meeting&location=Google+Meet&details=Suggested+slot">Pick this time</a>`;
+            return `${dt.toLocaleString()} â€“ <a href="https://calendar.google.com/calendar/u/0/r/eventedit?dates=${s.start.replace(/[-:]/g,'').split('.')[0].replace('T','/').replace('Z','Z')}/${s.end.replace(/[-:]/g,'').split('.')[0].replace('T','/').replace('Z','Z')}&text=Meeting&location=Google+Meet&details=Suggested+slot">Pick this time</a>`;
           }).join('<br>');
           bodyEl.focus();
           document.execCommand('insertHTML', false, `<div><br><strong>My availability:</strong><br>${list}</div>`);
@@ -122,7 +122,7 @@ function showExtensionActiveNotification() {
     font-family: Roboto, Arial, sans-serif;
     font-size: 14px;
   `;
-  notification.textContent = '✅ TaskForce Email Manager Active';
+  notification.textContent = 'âœ… TaskForce Email Manager Active';
   document.body.appendChild(notification);
   
   // Remove after 3 seconds
@@ -162,15 +162,15 @@ function addGmailSidebar() {
       TaskForce
     </div>
     <div class="aem-tab-item" data-tab="send" style="display: flex; align-items: center; padding: 8px; border-radius: 4px; cursor: pointer; margin-bottom: 4px; transition: background 0.2s;">
-      <span style="margin-right: 16px; font-size: 20px;">📧</span>
+      <span style="margin-right: 16px; font-size: 20px;">ðŸ“§</span>
       <span style="font-size: 14px; color: #202124;">Send & Schedule</span>
     </div>
     <div class="aem-tab-item" data-tab="track" style="display: flex; align-items: center; padding: 8px; border-radius: 4px; cursor: pointer; margin-bottom: 4px; transition: background 0.2s;">
-      <span style="margin-right: 16px; font-size: 20px;">📊</span>
+      <span style="margin-right: 16px; font-size: 20px;">ðŸ“Š</span>
       <span style="font-size: 14px; color: #202124;">Track & Engage</span>
     </div>
     <div class="aem-tab-item" data-tab="settings" style="display: flex; align-items: center; padding: 8px; border-radius: 4px; cursor: pointer; margin-bottom: 4px; transition: background 0.2s;">
-      <span style="margin-right: 16px; font-size: 20px;">⚙️</span>
+      <span style="margin-right: 16px; font-size: 20px;">âš™ï¸</span>
       <span style="font-size: 14px; color: #202124;">Settings & Tools</span>
     </div>
   `;
@@ -224,7 +224,7 @@ function ensureBulkSendEntry() {
     entry.style.cssText = 'margin: 8px 8px 0 8px;';
     entry.innerHTML = `
       <button id="aem-bulk-send-btn" style="width: 100%; display: inline-flex; align-items: center; gap: 8px; padding: 10px 12px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #667eea, #764ba2); box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
-        <span style="font-size: 16px;">📤</span>
+        <span style="font-size: 16px;">ðŸ“¤</span>
         <span>Bulk Send</span>
       </button>
     `;
@@ -260,7 +260,7 @@ function showBulkComposerModal() {
   modal.innerHTML = `
     <div style="display:flex; justify-content: space-between; align-items:center; padding:8px 12px; border-bottom:1px solid #dadce0; background:#fff;">
       <h3 style="margin:0; font-size:16px; color:#202124; font-weight:500;">Bulk Composer</h3>
-      <button id="aem-close-composer" title="Close" style="border:none;background:transparent;color:#5f6368;border-radius:4px;padding:6px 8px;cursor:pointer;">✕</button>
+      <button id="aem-close-composer" title="Close" style="border:none;background:transparent;color:#5f6368;border-radius:4px;padding:6px 8px;cursor:pointer;">âœ•</button>
     </div>
     <div style="display:grid; gap:10px; padding:12px; background:#fff; max-height: calc(90vh - 56px); overflow-y: auto;">
       <textarea id="aem-bulk-recipients" placeholder="Recipients (one email per line or comma-separated)" style="width:100%; min-height:90px; border:1px solid #dadce0; border-radius:4px; padding:10px; font-size:13px; background:#fff; color:#202124;"></textarea>
@@ -321,7 +321,7 @@ function showBulkComposerModal() {
         <label style="font-size:12px; color:#5f6368; font-weight:600;">Attachments</label>
         <input id="aem-file-input" type="file" multiple style="display:block; margin-top:6px;" />
         <div id="aem-attach-list" style="margin-top:8px; display:grid; gap:6px;"></div>
-        <div style="font-size:11px;color:#5f6368;margin-top:6px;">Max 10 files, total ≤ 10MB</div>
+        <div style="font-size:11px;color:#5f6368;margin-top:6px;">Max 10 files, total â‰¤ 10MB</div>
       </div>
       <div style="display:flex; gap:10px;">
         <input id="aem-start-time" type="datetime-local" style="flex:1; border:1px solid #dadce0; border-radius:4px; padding:8px; background:#fff; color:#202124;" />
@@ -422,7 +422,7 @@ function showBulkComposerModal() {
       row.style.cssText = 'display:flex; justify-content: space-between; align-items:center; border:1px solid #e8eaed; border-radius:6px; padding:6px 8px;';
       row.innerHTML = `
         <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#202124;">
-          <span>📎</span>
+          <span>ðŸ“Ž</span>
           <span>${att.filename}</span>
           <span style="color:#5f6368;">(${Math.round(att.size/1024)} KB)</span>
         </div>
@@ -471,7 +471,7 @@ function showBulkComposerModal() {
     const emailCol = (modal.querySelector('#aem-email-column')?.value || 'email');
     const rows = sheetRows.slice(0, 10).map((r, i) => {
       const email = r[emailCol] || '';
-      const rest = sheetHeaders.filter(h => h !== emailCol).slice(0, 3).map(h => `${h}: ${r[h] || ''}`).join(' • ');
+      const rest = sheetHeaders.filter(h => h !== emailCol).slice(0, 3).map(h => `${h}: ${r[h] || ''}`).join(' â€¢ ');
       return `<div style="padding:4px 0; border-bottom:1px solid #f1f3f4;"><strong>${i+1}.</strong> ${email} <span style=\"color:#5f6368;\">${rest}</span></div>`;
     }).join('');
     const extra = sheetRows.length > 10 ? `<div style=\"color:#5f6368; font-style:italic; padding-top:4px;\">... and ${sheetRows.length - 10} more</div>` : '';
@@ -481,14 +481,27 @@ function showBulkComposerModal() {
   function populateEmailColumnOptions(headers) {
     const sel = modal.querySelector('#aem-email-column');
     sel.innerHTML = '';
+    // Heuristic: prefer 'email' header; otherwise pick the header whose sample rows look most like emails
+    const lcHeaders = headers.map(h => h.toLowerCase());
+    const hasEmail = lcHeaders.includes('email');
+    let best = hasEmail ? headers[lcHeaders.indexOf('email')] : headers[0] || '';
+    if (!hasEmail && headers.length > 0 && sheetRows.length > 0) {
+      const re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+      let bestScore = -1;
+      headers.forEach(h => {
+        const score = sheetRows.slice(0, 20).reduce((acc, r) => acc + (re.test((r[h] || '').toString().trim()) ? 1 : 0), 0);
+        if (score > bestScore) { bestScore = score; best = h; }
+      });
+    }
     headers.forEach(h => {
       const opt = document.createElement('option');
       opt.value = h;
       opt.textContent = h;
-      if (h.toLowerCase() === 'email') opt.selected = true;
+      if (h === best) opt.selected = true;
       sel.appendChild(opt);
     });
     sel.addEventListener('change', renderSheetPreview);
+    try { renderSheetPreview(); } catch(_) {}
   }
 
   modal.querySelector('#aem-load-sheets')?.addEventListener('click', () => {
@@ -552,6 +565,7 @@ function showBulkComposerModal() {
   }
 
   async function submitBulk(schedule) {
+    try { console.log('[TaskForce] submitBulk clicked. schedule=', schedule); } catch(_) {}
     const manualRecipients = parseRecipients(modal.querySelector('#aem-bulk-recipients').value);
     const subject = (modal.querySelector('#aem-bulk-subject').value || '').trim();
     const body = modal.querySelector('#aem-bulk-body').value || '';
@@ -561,14 +575,22 @@ function showBulkComposerModal() {
     if (!subject) { alert('Subject is required'); return; }
     if (!body) { alert('Message body is required'); return; }
 
+    // Disable buttons to provide immediate feedback
+    try {
+      const sendBtn = modal.querySelector('#aem-send-now');
+      const schedBtn = modal.querySelector('#aem-schedule');
+      if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sendingâ€¦'; }
+      if (schedBtn) { schedBtn.disabled = true; }
+    } catch(_) {}
+
     let emails = [];
     if (sheetRows.length > 0) {
       const emailCol = (modal.querySelector('#aem-email-column').value || 'email').toLowerCase();
-      if (!sheetHeaders.includes(emailCol)) { alert('Selected email column not found in sheet'); return; }
+      if (!sheetHeaders.includes(emailCol)) { alert('Selected email column not found in sheet'); reenableButtons(); return; }
       const seen = new Set();
+      const re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
       sheetRows.forEach(row => {
         const to = (row[emailCol] || '').toString().trim();
-        const re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
         if (!re.test(to) || seen.has(to)) return;
         seen.add(to);
         emails.push({
@@ -578,7 +600,7 @@ function showBulkComposerModal() {
           attachments: selected
         });
       });
-      if (emails.length === 0) { alert('No valid email addresses found in the sheet'); return; }
+      if (emails.length === 0) { alert('No valid email addresses found in the sheet. Check the Email column mapping.'); reenableButtons(); return; }
     } else {
       if (manualRecipients.length === 0) { alert('Add at least one valid recipient'); return; }
       emails = manualRecipients.map(to => ({ to, subject, body, attachments: selected }));
@@ -647,7 +669,17 @@ function showBulkComposerModal() {
       callback(updated);
     }
 
+    function reenableButtons() {
+      try {
+        const sendBtn = modal.querySelector('#aem-send-now');
+        const schedBtn = modal.querySelector('#aem-schedule');
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send'; }
+        if (schedBtn) { schedBtn.disabled = false; }
+      } catch(_) {}
+    }
+
     function proceedSend() {
+      try { console.log('[TaskForce] proceedSend invoked'); } catch(_) {}
       chrome.runtime.sendMessage({ action: 'getBackendStatus' }, (statusResp) => {
         if (statusResp && statusResp.success && statusResp.status !== 'ready') {
           const proceed = confirm('Backend appears offline. Proceed in local mode? You must keep your PC on.');
@@ -655,6 +687,7 @@ function showBulkComposerModal() {
         }
         buildEmailsWithInserts((finalEmails) => {
           const tryLocalFallback = () => {
+            try { console.log('[TaskForce] Hybrid failed; falling back to local bulk sender'); } catch(_) {}
             chrome.runtime.sendMessage({ action: 'startBulkSending', emails: finalEmails, startTime, delay: delayMs }, (resp2) => {
               if (!resp2 || resp2.error) {
                 alert('Background not responding. Please reload the extension and try again.');
@@ -901,7 +934,7 @@ async function getProgressContent() {
       
       let html = `
         <div style="background: #f8f9fa; padding: 24px; border-radius: 8px; margin-bottom: 24px;">
-          <h2 style="margin-top: 0; font-size: 20px; color: #202124; margin-bottom: 16px;">📊 Quick Stats</h2>
+          <h2 style="margin-top: 0; font-size: 20px; color: #202124; margin-bottom: 16px;">ðŸ“Š Quick Stats</h2>
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
             <div style="background: white; padding: 16px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
               <div style="font-size: 14px; color: #5f6368; margin-bottom: 8px;">Sent Today</div>
@@ -1002,7 +1035,7 @@ async function getRepliesContent() {
       if (replies.length === 0) {
         resolve(`
           <div style="text-align: center; padding: 60px 20px; color: #666;">
-            <div style="font-size: 48px; margin-bottom: 16px;">💬</div>
+            <div style="font-size: 48px; margin-bottom: 16px;">ðŸ’¬</div>
             <h2 style="margin: 0 0 8px 0; font-size: 20px; color: #202124;">No tracked emails yet</h2>
             <p>Send some emails to start tracking replies!</p>
           </div>
@@ -1017,11 +1050,11 @@ async function getRepliesContent() {
         <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
           <div style="display: flex; gap: 32px; font-size: 16px;">
             <div>
-              <span style="color: #34a853; font-weight: 600; font-size: 24px;">✓ ${withReply.length}</span>
+              <span style="color: #34a853; font-weight: 600; font-size: 24px;">âœ“ ${withReply.length}</span>
               <span style="color: #5f6368; margin-left: 8px;">Replied</span>
             </div>
             <div>
-              <span style="color: #ea4335; font-weight: 600; font-size: 24px;">⚠ ${withoutReply.length}</span>
+              <span style="color: #ea4335; font-weight: 600; font-size: 24px;">âš  ${withoutReply.length}</span>
               <span style="color: #5f6368; margin-left: 8px;">No Reply</span>
             </div>
           </div>
@@ -1042,7 +1075,7 @@ async function getRepliesContent() {
                 <div style="font-size: 12px; color: #888;">Sent: ${new Date(email.sentAt).toLocaleString()}</div>
               </div>
               <div style="color: ${isReplied ? '#34a853' : '#ea4335'}; font-weight: 600; font-size: 14px;">
-                ${isReplied ? '✓ Replied' : '⚠ No Reply'}
+                ${isReplied ? 'âœ“ Replied' : 'âš  No Reply'}
               </div>
             </div>
           </div>
@@ -1100,7 +1133,7 @@ async function getFollowUpsContent() {
       html += `
         <div style="background: white; border: 1px solid #dadce0; border-radius: 8px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h3 style="margin: 0; font-size: 18px; color: #202124;">📋 Your Sent Emails</h3>
+            <h3 style="margin: 0; font-size: 18px; color: #202124;">ðŸ“‹ Your Sent Emails</h3>
             <button id="aem-show-all-emails" style="background: #1a73e8; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">View All Emails</button>
           </div>
           
@@ -1125,7 +1158,7 @@ async function getFollowUpsContent() {
           
           <!-- Advanced Filters -->
           <div style="background: #f8f9fa; padding: 16px; border-radius: 6px;">
-            <div style="font-size: 13px; font-weight: 500; color: #202124; margin-bottom: 12px;">🔍 Filter Emails</div>
+            <div style="font-size: 13px; font-weight: 500; color: #202124; margin-bottom: 12px;">ðŸ” Filter Emails</div>
             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
               <div>
                 <label style="display: block; font-size: 12px; color: #5f6368; margin-bottom: 6px;">Reply Status</label>
@@ -1173,7 +1206,7 @@ async function getFollowUpsContent() {
                   <div style="font-size: 11px; color: #888;">${new Date(email.sentAt).toLocaleString()}</div>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                  <span style="color: ${isReplied ? '#34a853' : '#ea4335'}; font-weight: 600; font-size: 12px;">${isReplied ? '✓ Replied' : '⚠ No Reply'}</span>
+                  <span style="color: ${isReplied ? '#34a853' : '#ea4335'}; font-weight: 600; font-size: 12px;">${isReplied ? 'âœ“ Replied' : 'âš  No Reply'}</span>
                   ${!isReplied ? `<button data-email-index="${index}" class="aem-send-manual-followup" style="background: #1a73e8; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;">Send Follow-up</button>` : ''}
                 </div>
               </div>
@@ -1187,7 +1220,7 @@ async function getFollowUpsContent() {
       if (rules.length === 0) {
         html += `
           <div style="text-align: center; padding: 60px 20px; color: #666; border: 2px dashed #dadce0; border-radius: 8px; background: #fafbfc;">
-            <div style="font-size: 64px; margin-bottom: 16px;">🔄</div>
+            <div style="font-size: 64px; margin-bottom: 16px;">ðŸ”„</div>
             <h2 style="margin: 0 0 8px 0; font-size: 22px; color: #202124;">No follow-up rules yet</h2>
             <p style="margin: 0 0 24px 0; font-size: 14px;">Automatically send follow-ups to recipients who haven't replied.<br>Set up multiple follow-ups for maximum effectiveness!</p>
             <button id="aem-quick-start" style="background: #1a73e8; color: white; border: none; padding: 12px 32px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">Get Started</button>
@@ -1203,20 +1236,20 @@ async function getFollowUpsContent() {
               <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
                 <div>
                   <strong style="color: #1a73e8; font-size: 18px;">Follow-up Sequence #${rule.sequenceNumber || index + 1}</strong>
-                  <span style="margin-left: 12px; padding: 4px 12px; background: ${rule.enabled ? '#e8f0fe' : '#f1f3f4'}; color: ${rule.enabled ? '#1a73e8' : '#5f6368'}; border-radius: 12px; font-size: 12px; font-weight: 500;">${rule.enabled ? '✓ Active' : '⏸ Paused'}</span>
+                  <span style="margin-left: 12px; padding: 4px 12px; background: ${rule.enabled ? '#e8f0fe' : '#f1f3f4'}; color: ${rule.enabled ? '#1a73e8' : '#5f6368'}; border-radius: 12px; font-size: 12px; font-weight: 500;">${rule.enabled ? 'âœ“ Active' : 'â¸ Paused'}</span>
                   ${rule.emailSelection ? `<span style="margin-left: 8px; padding: 4px 12px; background: #e8f5e9; color: #137333; border-radius: 12px; font-size: 12px; font-weight: 500;">${rule.emailSelection}</span>` : ''}
-                  ${rule.autoStopOnReply ? `<span style="margin-left: 8px; padding: 4px 12px; background: #fff3e0; color: #e65100; border-radius: 12px; font-size: 12px; font-weight: 500;">🛑 Auto-stop</span>` : ''}
+                  ${rule.autoStopOnReply ? `<span style="margin-left: 8px; padding: 4px 12px; background: #fff3e0; color: #e65100; border-radius: 12px; font-size: 12px; font-weight: 500;">ðŸ›‘ Auto-stop</span>` : ''}
                 </div>
                 <div style="display: flex; gap: 8px;">
-                  <button data-rule-index="${index}" class="aem-toggle-rule" style="background: ${rule.enabled ? '#fef7e0' : '#e8f0fe'}; color: ${rule.enabled ? '#ea8600' : '#1a73e8'}; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">${rule.enabled ? '⏸ Pause' : '▶ Resume'}</button>
-                  <button data-rule-index="${index}" class="aem-edit-rule" style="background: #1a73e8; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">✏️ Edit</button>
-                  <button data-rule-index="${index}" class="aem-delete-rule" style="background: #ea4335; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">🗑 Delete</button>
+                  <button data-rule-index="${index}" class="aem-toggle-rule" style="background: ${rule.enabled ? '#fef7e0' : '#e8f0fe'}; color: ${rule.enabled ? '#ea8600' : '#1a73e8'}; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">${rule.enabled ? 'â¸ Pause' : 'â–¶ Resume'}</button>
+                  <button data-rule-index="${index}" class="aem-edit-rule" style="background: #1a73e8; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">âœï¸ Edit</button>
+                  <button data-rule-index="${index}" class="aem-delete-rule" style="background: #ea4335; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">ðŸ—‘ Delete</button>
                 </div>
               </div>
               
               <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px;">
                 <div style="background: #f8f9fa; padding: 12px; border-radius: 6px;">
-                  <div style="font-size: 12px; color: #5f6368; margin-bottom: 4px;">⏰ Timing</div>
+                  <div style="font-size: 12px; color: #5f6368; margin-bottom: 4px;">â° Timing</div>
                   <div style="font-size: 14px; font-weight: 500; color: #202124;">
                     ${timing.days ? `After ${timing.days} days` : ''}
                     ${timing.hours ? `${timing.hours} hours` : ''}
@@ -1225,13 +1258,13 @@ async function getFollowUpsContent() {
                 </div>
                 
                 <div style="background: #f8f9fa; padding: 12px; border-radius: 6px;">
-                  <div style="font-size: 12px; color: #5f6368; margin-bottom: 4px;">📧 Subject</div>
+                  <div style="font-size: 12px; color: #5f6368; margin-bottom: 4px;">ðŸ“§ Subject</div>
                   <div style="font-size: 14px; font-weight: 500; color: #202124;">${rule.subject || 'Re: ${original_subject}'}</div>
                 </div>
               </div>
               
               <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
-                <div style="font-size: 12px; color: #5f6368; margin-bottom: 6px;">💬 Message Preview</div>
+                <div style="font-size: 12px; color: #5f6368; margin-bottom: 6px;">ðŸ’¬ Message Preview</div>
                 <div style="font-size: 13px; color: #5f6368; line-height: 1.5; max-height: 60px; overflow: hidden; text-overflow: ellipsis;">
                   ${rule.message ? rule.message.substring(0, 120) + '...' : 'No message set'}
                 </div>
@@ -1326,7 +1359,7 @@ async function getSendAndScheduleContent() {
   return `
     <div style="max-width: 900px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 32px; border-radius: 12px; margin-bottom: 32px; color: white;">
-        <h2 style="margin: 0 0 8px 0; font-size: 28px; font-weight: 700;">📧 Send & Schedule</h2>
+        <h2 style="margin: 0 0 8px 0; font-size: 28px; font-weight: 700;">ðŸ“§ Send & Schedule</h2>
         <p style="margin: 0; font-size: 16px; opacity: 0.9;">Manage templates, recipients, and scheduled sends</p>
       </div>
       
@@ -1334,7 +1367,7 @@ async function getSendAndScheduleContent() {
         <!-- Templates Section -->
         <div style="background: white; border: 2px solid #e8eaed; padding: 24px; border-radius: 12px; cursor: pointer; transition: all 0.3s;" id="open-templates">
           <div style="display: flex; align-items: center; margin-bottom: 16px;">
-            <span style="font-size: 40px; margin-right: 16px;">📝</span>
+            <span style="font-size: 40px; margin-right: 16px;">ðŸ“</span>
             <h3 style="margin: 0; font-size: 20px; color: #202124;">Templates</h3>
           </div>
           <p style="margin: 0 0 16px 0; color: #5f6368; font-size: 14px;">Save and reuse email templates</p>
@@ -1344,7 +1377,7 @@ async function getSendAndScheduleContent() {
         <!-- Recipients Section -->
         <div style="background: white; border: 2px solid #e8eaed; padding: 24px; border-radius: 12px; cursor: pointer; transition: all 0.3s;" id="open-recipients">
           <div style="display: flex; align-items: center; margin-bottom: 16px;">
-            <span style="font-size: 40px; margin-right: 16px;">👥</span>
+            <span style="font-size: 40px; margin-right: 16px;">ðŸ‘¥</span>
             <h3 style="margin: 0; font-size: 20px; color: #202124;">Recipients</h3>
           </div>
           <p style="margin: 0 0 16px 0; color: #5f6368; font-size: 14px;">Pick recipients or import CSV</p>
@@ -1353,7 +1386,7 @@ async function getSendAndScheduleContent() {
       </div>
       
       <div style="background: #f8f9fa; padding: 24px; border-radius: 12px; border-left: 4px solid #1a73e8;">
-        <h3 style="margin: 0 0 12px 0; font-size: 18px; color: #202124;">💡 Quick Tips</h3>
+        <h3 style="margin: 0 0 12px 0; font-size: 18px; color: #202124;">ðŸ’¡ Quick Tips</h3>
         <ul style="margin: 0; padding-left: 24px; color: #5f6368; font-size: 14px; line-height: 1.8;">
           <li>Use <strong>Schedule</strong> button in compose window for one-time scheduling</li>
           <li>Use <strong>Bulk Send</strong> button for Google Sheets integration</li>
@@ -1373,24 +1406,24 @@ async function getTrackAndEngageContent() {
   return `
     <div style="max-width: 1200px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 32px; border-radius: 12px; margin-bottom: 32px; color: white;">
-        <h2 style="margin: 0 0 8px 0; font-size: 28px; font-weight: 700;">📊 Track & Engage</h2>
+        <h2 style="margin: 0 0 8px 0; font-size: 28px; font-weight: 700;">ðŸ“Š Track & Engage</h2>
         <p style="margin: 0; font-size: 16px; opacity: 0.9;">Monitor campaign progress, replies, and engagement</p>
       </div>
       
       <!-- Campaign Progress Section -->
       <div style="margin-bottom: 32px;">
-        <h3 style="margin: 0 0 20px 0; font-size: 22px; color: #202124; border-bottom: 2px solid #e8eaed; padding-bottom: 12px;">📊 Campaign Progress</h3>
+        <h3 style="margin: 0 0 20px 0; font-size: 22px; color: #202124; border-bottom: 2px solid #e8eaed; padding-bottom: 12px;">ðŸ“Š Campaign Progress</h3>
         ${progressContent}
       </div>
       
       <!-- Quick Actions Bar -->
       <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px;">
         <button id="open-analytics" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 16px; border-radius: 12px; cursor: pointer; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 12px; box-shadow: 0 4px 12px rgba(102,126,234,0.4);">
-          <span style="font-size: 24px;">📊</span>
+          <span style="font-size: 24px;">ðŸ“Š</span>
           <span>View Analytics Dashboard</span>
         </button>
         <button id="view-tracking-stats" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border: none; padding: 16px; border-radius: 12px; cursor: pointer; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 12px; box-shadow: 0 4px 12px rgba(245,87,108,0.4);">
-          <span style="font-size: 24px;">📈</span>
+          <span style="font-size: 24px;">ðŸ“ˆ</span>
           <span>Email Tracking Stats</span>
         </button>
       </div>
@@ -1398,12 +1431,12 @@ async function getTrackAndEngageContent() {
       <!-- Analytics & Replies Section -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
         <div>
-          <h3 style="margin: 0 0 20px 0; font-size: 22px; color: #202124; border-bottom: 2px solid #e8eaed; padding-bottom: 12px;">💬 Email Replies</h3>
+          <h3 style="margin: 0 0 20px 0; font-size: 22px; color: #202124; border-bottom: 2px solid #e8eaed; padding-bottom: 12px;">ðŸ’¬ Email Replies</h3>
           ${repliesContent}
         </div>
         
         <div>
-          <h3 style="margin: 0 0 20px 0; font-size: 22px; color: #202124; border-bottom: 2px solid #e8eaed; padding-bottom: 12px;">🔄 Follow-up Automation</h3>
+          <h3 style="margin: 0 0 20px 0; font-size: 22px; color: #202124; border-bottom: 2px solid #e8eaed; padding-bottom: 12px;">ðŸ”„ Follow-up Automation</h3>
           ${await getFollowUpsContent()}
         </div>
       </div>
@@ -1418,7 +1451,7 @@ async function getSettingsAndToolsContent() {
   return `
     <div style="max-width: 900px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 32px; border-radius: 12px; margin-bottom: 32px; color: white;">
-        <h2 style="margin: 0 0 8px 0; font-size: 28px; font-weight: 700;">⚙️ Settings & Tools</h2>
+        <h2 style="margin: 0 0 8px 0; font-size: 28px; font-weight: 700;">âš™ï¸ Settings & Tools</h2>
         <p style="margin: 0; font-size: 16px; opacity: 0.9;">Configuration, calendar integration, and advanced features</p>
       </div>
       
@@ -1426,7 +1459,7 @@ async function getSettingsAndToolsContent() {
         <!-- Calendar Section -->
         <div style="background: white; border: 2px solid #e8eaed; padding: 24px; border-radius: 12px; cursor: pointer; transition: all 0.3s;" id="open-calendar">
           <div style="display: flex; align-items: center; margin-bottom: 16px;">
-            <span style="font-size: 40px; margin-right: 16px;">📅</span>
+            <span style="font-size: 40px; margin-right: 16px;">ðŸ“…</span>
             <h3 style="margin: 0; font-size: 20px; color: #202124;">Calendar</h3>
           </div>
           <p style="margin: 0 0 16px 0; color: #5f6368; font-size: 14px;">Schedule emails and view calendar events</p>
@@ -1436,7 +1469,7 @@ async function getSettingsAndToolsContent() {
         <!-- Bulk Operations Section -->
         <div style="background: white; border: 2px solid #e8eaed; padding: 24px; border-radius: 12px; cursor: pointer; transition: all 0.3s;" id="open-bulk-ops">
           <div style="display: flex; align-items: center; margin-bottom: 16px;">
-            <span style="font-size: 40px; margin-right: 16px;">⚡</span>
+            <span style="font-size: 40px; margin-right: 16px;">âš¡</span>
             <h3 style="margin: 0; font-size: 20px; color: #202124;">Bulk Operations</h3>
           </div>
           <p style="margin: 0 0 16px 0; color: #5f6368; font-size: 14px;">Advanced bulk email management</p>
@@ -1446,7 +1479,7 @@ async function getSettingsAndToolsContent() {
       
       <!-- Settings Panel -->
       <div style="background: white; border: 2px solid #e8eaed; padding: 24px; border-radius: 12px;">
-        <h3 style="margin: 0 0 20px 0; font-size: 20px; color: #202124;">⚙️ Preferences</h3>
+        <h3 style="margin: 0 0 20px 0; font-size: 20px; color: #202124;">âš™ï¸ Preferences</h3>
         <div style="display: grid; gap: 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: #f8f9fa; border-radius: 8px;">
             <div>
@@ -1511,7 +1544,7 @@ function showAllEmailsModal() {
               <div style="font-size: 11px; color: #888;">${new Date(email.sentAt).toLocaleString()}</div>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-              <span style="color: ${isReplied ? '#34a853' : '#ea4335'}; font-weight: 600; font-size: 12px;">${isReplied ? '✓ Replied' : '⚠ No Reply'}</span>
+              <span style="color: ${isReplied ? '#34a853' : '#ea4335'}; font-weight: 600; font-size: 12px;">${isReplied ? 'âœ“ Replied' : 'âš  No Reply'}</span>
               ${!isReplied ? `<button data-email-id="${email.id || index}" class="aem-send-followup-all" style="background: #1a73e8; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px;">Send Follow-up</button>` : ''}
             </div>
           </div>
@@ -1624,7 +1657,7 @@ function showFilteredEmails(emails) {
             <div style="font-size: 11px; color: #888;">${new Date(email.sentAt).toLocaleString()}</div>
           </div>
           <div style="display: flex; gap: 8px; align-items: center;">
-            <span style="color: ${isReplied ? '#34a853' : '#ea4335'}; font-weight: 600; font-size: 12px;">${isReplied ? '✓ Replied' : '⚠ No Reply'}</span>
+            <span style="color: ${isReplied ? '#34a853' : '#ea4335'}; font-weight: 600; font-size: 12px;">${isReplied ? 'âœ“ Replied' : 'âš  No Reply'}</span>
             ${!isReplied ? `<button data-email-index="${index}" class="aem-send-followup-filtered" style="background: #1a73e8; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12px;">Send Follow-up</button>` : ''}
           </div>
         </div>
@@ -1780,7 +1813,7 @@ function showAdvancedFollowUpModal() {
       <div style="padding: 24px;">
         <!-- Timing Options -->
         <div style="margin-bottom: 24px;">
-          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 12px;">⏰ When to Send Follow-up?</label>
+          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 12px;">â° When to Send Follow-up?</label>
           
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
             <div>
@@ -1826,7 +1859,7 @@ function showAdvancedFollowUpModal() {
               </label>
             </div>
             <div style="font-size: 11px; color: #5f6368; margin-top: 8px; line-height: 1.4;">
-              💡 Leave all unchecked to send on any day. Follow-up will only trigger on selected days.
+              ðŸ’¡ Leave all unchecked to send on any day. Follow-up will only trigger on selected days.
             </div>
           </div>
           
@@ -1837,7 +1870,7 @@ function showAdvancedFollowUpModal() {
               <span style="font-size: 13px; color: #5f6368;">follow-up(s) with the same timing</span>
             </div>
             <div style="font-size: 11px; color: #5f6368; margin-top: 6px; line-height: 1.4;">
-              💡 Create multiple follow-ups with different messages (e.g., 1st after 3 days, 2nd after 7 days). Each automatically stops if recipient replies.
+              ðŸ’¡ Create multiple follow-ups with different messages (e.g., 1st after 3 days, 2nd after 7 days). Each automatically stops if recipient replies.
             </div>
           </div>
           
@@ -1861,7 +1894,7 @@ function showAdvancedFollowUpModal() {
         
         <!-- Email Selection -->
         <div style="margin-bottom: 24px;">
-          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 12px;">📧 Which Emails to Follow Up?</label>
+          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 12px;">ðŸ“§ Which Emails to Follow Up?</label>
           <select id="email-selection" style="width: 100%; padding: 10px 12px; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px; background: white;">
             <option value="all">All sent emails</option>
             <option value="bulk">Only bulk send emails</option>
@@ -1872,16 +1905,16 @@ function showAdvancedFollowUpModal() {
         
         <!-- Subject -->
         <div style="margin-bottom: 24px;">
-          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">📝 Follow-up Subject</label>
+          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">ðŸ“ Follow-up Subject</label>
           <input type="text" id="followup-subject" placeholder="Re: [original subject]" style="width: 100%; padding: 10px 12px; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px;">
           <div style="font-size: 12px; color: #5f6368; margin-top: 6px; line-height: 1.5;">
-            💡 Tip: Use <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${original_subject}</code> to include the original subject
+            ðŸ’¡ Tip: Use <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${original_subject}</code> to include the original subject
           </div>
         </div>
         
         <!-- Message Content -->
         <div style="margin-bottom: 24px;">
-          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">💬 Follow-up Message</label>
+          <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">ðŸ’¬ Follow-up Message</label>
           <textarea id="followup-message" rows="8" placeholder="Hi,
 
 I wanted to follow up on my previous email. [recipient_name], I hope you're doing well!
@@ -1891,7 +1924,7 @@ Let me know if you have any questions or need clarification.
 Best regards"
 style="width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px; font-family: inherit; resize: vertical;"></textarea>
           <div style="font-size: 12px; color: #5f6368; margin-top: 6px; line-height: 1.5;">
-            💡 Variables you can use: <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${recipient_name}</code>, <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${original_subject}</code>, <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${original_message}</code>
+            ðŸ’¡ Variables you can use: <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${recipient_name}</code>, <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${original_subject}</code>, <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${original_message}</code>
           </div>
         </div>
         
@@ -1908,7 +1941,7 @@ style="width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 4px
         </label>
         
         <div style="background: #fff3e0; padding: 12px; border-radius: 6px; margin-bottom: 24px;">
-          <div style="font-size: 12px; color: #e65100; font-weight: 500; margin-bottom: 4px;">💡 Follow-up Sequence Tip</div>
+          <div style="font-size: 12px; color: #e65100; font-weight: 500; margin-bottom: 4px;">ðŸ’¡ Follow-up Sequence Tip</div>
           <div style="font-size: 11px; color: #666; line-height: 1.5;">
             Create multiple follow-ups with different messages (e.g., 1st follow-up after 3 days, 2nd after 7 days, 3rd after 14 days). 
             Each follow-up in the sequence automatically stops if the recipient replies!
@@ -2024,7 +2057,7 @@ style="width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 4px
       chip.textContent = name;
       chip.style.cssText = 'padding:6px 10px; border:1px solid #dadce0; border-radius:16px; background:#fff; font-size:12px; display:inline-flex; align-items:center; gap:6px;';
       const x = document.createElement('button');
-      x.textContent = '×';
+      x.textContent = 'Ã—';
       x.style.cssText = 'border:none; background:transparent; cursor:pointer; font-size:12px;';
       x.addEventListener('click', () => { selectedLabels.delete(name); renderSelectedChips(); });
       chip.appendChild(x);
@@ -2050,7 +2083,7 @@ style="width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 4px
             const isSystem = (l.type || '').toLowerCase() === 'system';
             const name = l.name;
             const sel = selectedLabels.has(name) ? 'border-color:#202124;background:#f1f3f4;' : '';
-            return `<button data-name="${name}" style="text-align:left;padding:8px 12px;border:1px solid #dadce0;border-radius:8px;background:#fff;cursor:pointer;${sel}">${isSystem ? '📁' : '🏷️'} ${name}</button>`;
+            return `<button data-name="${name}" style="text-align:left;padding:8px 12px;border:1px solid #dadce0;border-radius:8px;background:#fff;cursor:pointer;${sel}">${isSystem ? 'ðŸ“' : 'ðŸ·ï¸'} ${name}</button>`;
           }).join('')}
         </div>
       `;
@@ -2133,7 +2166,7 @@ function editFollowUpRule(index) {
         
         <div style="padding: 24px;">
           <div style="margin-bottom: 24px;">
-            <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 12px;">⏰ When to Send Follow-up?</label>
+            <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 12px;">â° When to Send Follow-up?</label>
             
             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
               <div>
@@ -2153,7 +2186,7 @@ function editFollowUpRule(index) {
           </div>
           
           <div style="margin-bottom: 24px;">
-            <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 12px;">📧 Which Emails to Follow Up?</label>
+            <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 12px;">ðŸ“§ Which Emails to Follow Up?</label>
             <select id="edit-email-selection" style="width: 100%; padding: 10px 12px; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px; background: white;">
               <option value="all" ${rule.emailSelection === 'all' ? 'selected' : ''}>All sent emails</option>
               <option value="bulk" ${rule.emailSelection === 'bulk' ? 'selected' : ''}>Only bulk send emails</option>
@@ -2163,12 +2196,12 @@ function editFollowUpRule(index) {
           </div>
           
           <div style="margin-bottom: 24px;">
-            <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">📝 Follow-up Subject</label>
+            <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">ðŸ“ Follow-up Subject</label>
             <input type="text" id="edit-followup-subject" value="${rule.subject || ''}" style="width: 100%; padding: 10px 12px; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px;">
           </div>
           
           <div style="margin-bottom: 24px;">
-            <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">💬 Follow-up Message</label>
+            <label style="display: block; font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px;">ðŸ’¬ Follow-up Message</label>
             <textarea id="edit-followup-message" rows="8" style="width: 100%; padding: 12px; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px; font-family: inherit; resize: vertical;">${rule.message || ''}</textarea>
           </div>
           
@@ -2229,7 +2262,7 @@ function editFollowUpRule(index) {
           chip.textContent = name;
           chip.style.cssText = 'padding:6px 10px; border:1px solid #dadce0; border-radius:16px; background:#fff; font-size:12px; display:inline-flex; align-items:center; gap:6px;';
           const x = document.createElement('button');
-          x.textContent = '×';
+          x.textContent = 'Ã—';
           x.style.cssText = 'border:none; background:transparent; cursor:pointer; font-size:12px;';
           x.addEventListener('click', () => { selectedLabelsEdit.delete(name); renderSelectedChipsEdit(); });
           chip.appendChild(x);
@@ -2255,7 +2288,7 @@ function editFollowUpRule(index) {
                 const isSystem = (l.type || '').toLowerCase() === 'system';
                 const name = l.name;
                 const sel = selectedLabelsEdit.has(name) ? 'border-color:#202124;background:#f1f3f4;' : '';
-                return `<button data-name="${name}" style="text-align:left;padding:8px 12px;border:1px solid #dadce0;border-radius:8px;background:#fff;cursor:pointer;${sel}">${isSystem ? '📁' : '🏷️'} ${name}</button>`;
+                return `<button data-name="${name}" style="text-align:left;padding:8px 12px;border:1px solid #dadce0;border-radius:8px;background:#fff;cursor:pointer;${sel}">${isSystem ? 'ðŸ“' : 'ðŸ·ï¸'} ${name}</button>`;
               }).join('')}
             </div>
           `;
@@ -2315,50 +2348,9 @@ function editFollowUpRule(index) {
 }
 
 // Observe compose window and add scheduling option
-function observeComposeWindow() {
-  const observer = new MutationObserver(() => {
-    const composeContainer = document.querySelector('[role="dialog"]');
-    if (composeContainer && !composeContainer.querySelector('.aem-schedule-btn')) {
-      addScheduleButton(composeContainer);
-    }
-  });
-  
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
-}
-
+function observeComposeWindow() { /* disabled */ }\n
 // Add Schedule and Bulk Send buttons to compose window
-function addScheduleButton(composeContainer) {
-  const toolbar = composeContainer.querySelector('[role="group"]');
-  if (!toolbar) return;
-  
-  // REMOVED: Email Tracking Toggle (now in Settings tab only for cleaner composer)
-  
-  // Add Schedule button
-  const scheduleBtn = document.createElement('div');
-  scheduleBtn.className = 'aem-schedule-btn';
-  scheduleBtn.innerHTML = `<button class="aem-btn">📅 Schedule</button>`;
-  toolbar.appendChild(scheduleBtn);
-  
-  scheduleBtn.querySelector('button').addEventListener('click', () => {
-    showScheduleDialog(composeContainer);
-  });
-  // Skip adding Bulk Send buttons to Gmail composer; use sidebar Bulk Composer instead.
-  return;
-  
-  // Add Bulk Send button (ONLY Schedule and Bulk Send in composer)
-  const bulkBtn = document.createElement('div');
-  bulkBtn.className = 'aem-bulk-btn';
-  bulkBtn.innerHTML = `<button class="aem-btn" style="background: #0f5132;">📧 Bulk Send</button>`;
-  toolbar.appendChild(bulkBtn);
-  
-  bulkBtn.querySelector('button').addEventListener('click', () => {
-    showBulkSendModal();
-  });
-}
-
+function addScheduleButton(composeContainer) { /* disabled */ }\n
 // Show schedule dialog
 function showScheduleDialog(composeContainer) {
   const dialog = document.createElement('div');
@@ -2501,7 +2493,7 @@ function showBulkSendModal() {
   
   modalContent.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-      <h2 style="margin: 0; font-size: 20px; font-weight: 600; color: #202124;">📧 Bulk Send</h2>
+      <h2 style="margin: 0; font-size: 20px; font-weight: 600; color: #202124;">ðŸ“§ Bulk Send</h2>
       <button id="close-bulk-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #5f6368;">&times;</button>
     </div>
     
@@ -2528,7 +2520,7 @@ function showBulkSendModal() {
     </div>
     
     <details style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
-      <summary style="font-weight: 600; color: #202124; cursor: pointer;">🎯 Conditional Sending (Optional)</summary>
+      <summary style="font-weight: 600; color: #202124; cursor: pointer;">ðŸŽ¯ Conditional Sending (Optional)</summary>
       <div style="margin-top: 12px;">
         <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer;">
           <input type="checkbox" id="send-if-opened">
@@ -2644,7 +2636,7 @@ function loadSheetsDataFromModal(sheetsUrl, gmailSubject, gmailBody) {
       preview.innerHTML = `
         <div style="background: #e8f5e9; padding: 16px; border-radius: 8px; margin-top: 16px;">
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-            <span style="font-size: 24px;">✅</span>
+            <span style="font-size: 24px;">âœ…</span>
             <strong style="font-size: 16px;">Found ${emailCount} recipients!</strong>
           </div>
           <div style="font-size: 13px; color: #5f6368;">
@@ -2707,12 +2699,12 @@ function startBulkSend() {
   panel.innerHTML = `
     <div class="aem-mini-header" style="cursor: pointer; user-select: none;">
       <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="font-size: 18px;">📧</span>
+        <span style="font-size: 18px;">ðŸ“§</span>
         <div style="flex: 1;">
           <div style="font-weight: 600; font-size: 14px; color: #202124;">Bulk Send</div>
           <div style="font-size: 11px; color: #5f6368;" id="bulk-status">Paste sheet URL to start</div>
         </div>
-        <span class="aem-toggle-icon" style="font-size: 16px; color: #5f6368;">▼</span>
+        <span class="aem-toggle-icon" style="font-size: 16px; color: #5f6368;">â–¼</span>
       </div>
     </div>
     <div class="aem-mini-content" style="display: none; padding: 12px; background: #fafafa; border-top: 1px solid #e8eaed;">
@@ -2733,7 +2725,7 @@ function startBulkSend() {
       </div>
       
       <details style="background: #f8f9fa; padding: 8px; border-radius: 6px; margin-bottom: 12px; font-size: 12px;">
-        <summary style="font-weight: 600; color: #202124; cursor: pointer; padding: 4px;">🎯 Conditional Sending (Optional)</summary>
+        <summary style="font-weight: 600; color: #202124; cursor: pointer; padding: 4px;">ðŸŽ¯ Conditional Sending (Optional)</summary>
         <div style="margin-top: 8px; padding-left: 16px;">
           <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; cursor: pointer;">
             <input type="checkbox" id="send-if-opened" style="width: 16px; height: 16px;">
@@ -2816,11 +2808,11 @@ function startBulkSend() {
     header.addEventListener('click', () => {
       if (content.style.display === 'none') {
         content.style.display = 'block';
-        icon.textContent = '▲';
+        icon.textContent = 'â–²';
         panel.style.marginBottom = '12px';
       } else {
         content.style.display = 'none';
-        icon.textContent = '▼';
+        icon.textContent = 'â–¼';
         panel.style.marginBottom = '0px';
       }
     });
@@ -2950,7 +2942,7 @@ function startBulkSend() {
     if (response.error) {
       alert('Error: ' + response.error);
     } else {
-      alert(`✅ Started sending ${emails.length} emails!\n\nCheck extension popup for progress.`);
+      alert(`âœ… Started sending ${emails.length} emails!\n\nCheck extension popup for progress.`);
       closeBulkModal();
     }
   });
@@ -2989,14 +2981,14 @@ async function loadSheetsData() {
     }, (response) => {
       if (chrome.runtime.lastError) {
         alert('Error: ' + chrome.runtime.lastError.message + '\n\nPlease reload the Gmail page.');
-        loadBtn.textContent = '📥 Load Sheet';
+        loadBtn.textContent = 'ðŸ“¥ Load Sheet';
         loadBtn.disabled = false;
         return;
       }
       
       if (response.error) {
         alert('Error loading sheet: ' + response.error);
-        loadBtn.textContent = '📥 Load Sheet';
+        loadBtn.textContent = 'ðŸ“¥ Load Sheet';
         loadBtn.disabled = false;
         return;
       }
@@ -3005,7 +2997,7 @@ async function loadSheetsData() {
       const previewDiv = document.getElementById('sheets-preview');
       previewDiv.style.display = 'block';
       
-      let previewHtml = '<p style="margin: 0 0 8px 0; font-weight: 500;">✅ Loaded!</p>';
+      let previewHtml = '<p style="margin: 0 0 8px 0; font-weight: 500;">âœ… Loaded!</p>';
       previewHtml += '<table style="width: 100%; font-size: 12px;">';
       
       if (response.data && response.data.length > 0) {
@@ -3033,7 +3025,7 @@ async function loadSheetsData() {
       document.getElementById('send-bulk-btn').style.display = 'inline-block';
       document.getElementById('send-bulk-btn').textContent = `Send ${response.data.length} Emails`;
       
-      loadBtn.textContent = '📥 Load Sheet';
+      loadBtn.textContent = 'ðŸ“¥ Load Sheet';
       loadBtn.disabled = false;
       
       // Store data for sending
@@ -3042,7 +3034,7 @@ async function loadSheetsData() {
   } catch (error) {
     console.error('Error:', error);
     alert('Error loading sheet: ' + error.message + '\n\nPlease reload the Gmail page.');
-    loadBtn.textContent = '📥 Load Sheet';
+    loadBtn.textContent = 'ðŸ“¥ Load Sheet';
     loadBtn.disabled = false;
   }
 }
@@ -3372,7 +3364,7 @@ function showAnalyticsModal() {
         <div style="padding: 24px; border-bottom: 1px solid #dadce0;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">📊 Email Analytics</h2>
+              <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">ðŸ“Š Email Analytics</h2>
               <p style="margin: 8px 0 0 0; color: #5f6368; font-size: 14px;">Track opens, clicks, and replies</p>
             </div>
             <button id="close-analytics" style="background: #dadce0; color: #202124; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-size: 14px;">Close</button>
@@ -3453,19 +3445,19 @@ function showAnalyticsModal() {
                   <div style="flex: 1;">
                     <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">Email #${email.id}</div>
                     <div style="font-size: 12px; color: #5f6368;">
-                      Opened: ${email.opened ? '✓ ' + email.openedCount + ' times' : '✗ Not opened'}
+                      Opened: ${email.opened ? 'âœ“ ' + email.openedCount + ' times' : 'âœ— Not opened'}
                     </div>
                   </div>
                   <div style="display: flex; gap: 8px;">
-                    ${email.opened ? '<span style="color: #34a853; font-size: 12px; font-weight: 600;">✓ Open</span>' : ''}
-                    ${email.linkClicks && email.linkClicks.length > 0 ? `<span style="color: #ea8600; font-size: 12px; font-weight: 600;">🔗 ${email.linkClicks.length} clicks</span>` : ''}
+                    ${email.opened ? '<span style="color: #34a853; font-size: 12px; font-weight: 600;">âœ“ Open</span>' : ''}
+                    ${email.linkClicks && email.linkClicks.length > 0 ? `<span style="color: #ea8600; font-size: 12px; font-weight: 600;">ðŸ”— ${email.linkClicks.length} clicks</span>` : ''}
                   </div>
                 </div>
                 ${email.linkClicks && email.linkClicks.length > 0 ? `
                   <div style="background: #f8f9fa; padding: 8px; border-radius: 4px; margin-top: 8px;">
                     <div style="font-size: 11px; color: #5f6368; margin-bottom: 4px;">Link Clicks:</div>
                     ${email.linkClicks.map(click => `
-                      <div style="font-size: 11px; color: #666;">→ ${click.url.substring(0, 40)}...</div>
+                      <div style="font-size: 11px; color: #666;">â†’ ${click.url.substring(0, 40)}...</div>
                     `).join('')}
                   </div>
                 ` : ''}
@@ -3515,7 +3507,7 @@ function showRecipientPicker(composeContainer) {
         <div style="padding: 24px; border-bottom: 1px solid #dadce0; position: sticky; top: 0; background: white; z-index: 10;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">👥 Pick Recipients</h2>
+              <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">ðŸ‘¥ Pick Recipients</h2>
               <p style="margin: 8px 0 0 0; color: #5f6368; font-size: 14px;">Select emails to send to</p>
             </div>
             <button id="close-recipient-picker" style="background: #dadce0; color: #202124; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-size: 14px;">Close</button>
@@ -3548,8 +3540,8 @@ function showRecipientPicker(composeContainer) {
                     <div style="flex: 1;">
                       <div style="font-weight: 500; font-size: 14px; color: #202124;">${email}</div>
                       <div style="font-size: 12px; color: #5f6368; margin-top: 2px;">
-                        ${hasReplied ? '<span style="color: #34a853;">✓ Replied</span>' : ''}
-                        ${isOpened ? '<span style="color: #1a73e8;">✓ Opened</span>' : '<span style="color: #ea4335;">✗ Not opened</span>'}
+                        ${hasReplied ? '<span style="color: #34a853;">âœ“ Replied</span>' : ''}
+                        ${isOpened ? '<span style="color: #1a73e8;">âœ“ Opened</span>' : '<span style="color: #ea4335;">âœ— Not opened</span>'}
                       </div>
                     </div>
                   </div>
@@ -3668,7 +3660,7 @@ function showCSVImportModal(composeContainer) {
   modal.innerHTML = `
     <div style="background: white; border-radius: 8px; max-width: 600px; width: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
       <div style="padding: 24px; border-bottom: 1px solid #dadce0;">
-        <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">📄 Import Recipients from CSV</h2>
+        <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">ðŸ“„ Import Recipients from CSV</h2>
         <p style="margin: 8px 0 0 0; color: #5f6368; font-size: 14px;">Upload a CSV file with email addresses</p>
       </div>
       
@@ -3688,7 +3680,7 @@ function showCSVImportModal(composeContainer) {
         </div>
         
         <div style="background: #e8f0fe; padding: 12px; border-radius: 6px; display: none;" id="csv-preview-box">
-          <div style="font-size: 13px; font-weight: 500; color: #1a73e8; margin-bottom: 8px;">📊 Preview (<span id="csv-count">0</span> recipients)</div>
+          <div style="font-size: 13px; font-weight: 500; color: #1a73e8; margin-bottom: 8px;">ðŸ“Š Preview (<span id="csv-count">0</span> recipients)</div>
           <div style="font-size: 12px; color: #666; max-height: 150px; overflow-y: auto;" id="csv-preview-content"></div>
         </div>
       </div>
@@ -3811,7 +3803,7 @@ function showTemplatesModal(composeContainer) {
         <div style="padding: 24px; border-bottom: 1px solid #dadce0;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
             <div>
-              <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">📝 Email Templates</h2>
+              <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">ðŸ“ Email Templates</h2>
               <p style="margin: 8px 0 0 0; color: #5f6368; font-size: 14px;">Use saved templates or generate with AI</p>
             </div>
             <button id="close-templates" style="background: #dadce0; color: #202124; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-size: 14px;">Close</button>
@@ -3819,14 +3811,14 @@ function showTemplatesModal(composeContainer) {
           
           <div style="display: flex; gap: 8px;">
             <button id="new-template" style="background: #00bcd4; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">+ New Template</button>
-            <button id="generate-ai" style="background: #9c27b0; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">✨ Generate with AI</button>
+            <button id="generate-ai" style="background: #9c27b0; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">âœ¨ Generate with AI</button>
           </div>
         </div>
         
         <div style="padding: 24px;">
           ${templates.length === 0 ? `
             <div style="text-align: center; padding: 60px 20px; color: #666;">
-              <div style="font-size: 64px; margin-bottom: 16px;">📝</div>
+              <div style="font-size: 64px; margin-bottom: 16px;">ðŸ“</div>
               <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #202124;">No templates yet</h3>
               <p>Create templates for common emails or use AI to generate new ones!</p>
             </div>
@@ -3916,7 +3908,7 @@ function showNewTemplateModal(composeContainer) {
   modal.innerHTML = `
     <div style="background: white; border-radius: 8px; max-width: 700px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
       <div style="padding: 24px; border-bottom: 1px solid #dadce0;">
-        <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">📝 Create New Template</h2>
+        <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">ðŸ“ Create New Template</h2>
       </div>
       
       <div style="padding: 24px;">
@@ -3938,7 +3930,7 @@ I wanted to follow up on our meeting...
 
 Best regards" style="width: 100%; padding: 10px; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px; font-family: inherit;"></textarea>
           <div style="font-size: 11px; color: #5f6368; margin-top: 6px;">
-            💡 Use variables: <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${recipient_name}</code>, <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${date}</code>
+            ðŸ’¡ Use variables: <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${recipient_name}</code>, <code style="background: #e8eaed; padding: 2px 6px; border-radius: 3px;">\${date}</code>
           </div>
         </div>
       </div>
@@ -4000,7 +3992,7 @@ function showAIGenerateModal(composeContainer) {
   modal.innerHTML = `
     <div style="background: white; border-radius: 8px; max-width: 600px; width: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
       <div style="padding: 24px; border-bottom: 1px solid #dadce0;">
-        <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">✨ Generate Template with AI</h2>
+        <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">âœ¨ Generate Template with AI</h2>
         <p style="margin: 8px 0 0 0; color: #5f6368; font-size: 13px;">Describe what you need, AI will create the template</p>
       </div>
       
@@ -4048,7 +4040,7 @@ function showAIGenerateModal(composeContainer) {
     
     // Show loading state
     const originalText = generateBtn.textContent;
-    generateBtn.textContent = '🔄 Generating...';
+    generateBtn.textContent = 'ðŸ”„ Generating...';
     generateBtn.disabled = true;
     
     try {
@@ -4356,7 +4348,7 @@ function showBulkOperations(composeContainer) {
         <div style="padding: 24px; border-bottom: 1px solid #dadce0; position: sticky; top: 0; background: white; z-index: 10;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">⚡ Bulk Operations</h2>
+              <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">âš¡ Bulk Operations</h2>
               <p style="margin: 8px 0 0 0; color: #5f6368; font-size: 14px;">Multi-select recipients for bulk actions</p>
             </div>
             <button id="close-bulk-ops" style="background: #dadce0; color: #202124; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-size: 14px;">Close</button>
@@ -4415,9 +4407,9 @@ function showBulkOperations(composeContainer) {
                     <div style="font-size: 12px; color: #5f6368;">${rec.subject}</div>
                   </div>
                   <div style="display: flex; gap: 4px;">
-                    ${rec.hasReplied ? '<span style="padding: 4px 8px; background: #e8f5e9; color: #137333; border-radius: 4px; font-size: 11px; font-weight: 500;">✓ Replied</span>' : ''}
-                    ${rec.opened ? '<span style="padding: 4px 8px; background: #e3f2fd; color: #174ea6; border-radius: 4px; font-size: 11px; font-weight: 500;">👁 Opened</span>' : ''}
-                    ${rec.clicked ? '<span style="padding: 4px 8px; background: #fff3e0; color: #b06000; border-radius: 4px; font-size: 11px; font-weight: 500;">🔗 Clicked</span>' : ''}
+                    ${rec.hasReplied ? '<span style="padding: 4px 8px; background: #e8f5e9; color: #137333; border-radius: 4px; font-size: 11px; font-weight: 500;">âœ“ Replied</span>' : ''}
+                    ${rec.opened ? '<span style="padding: 4px 8px; background: #e3f2fd; color: #174ea6; border-radius: 4px; font-size: 11px; font-weight: 500;">ðŸ‘ Opened</span>' : ''}
+                    ${rec.clicked ? '<span style="padding: 4px 8px; background: #fff3e0; color: #b06000; border-radius: 4px; font-size: 11px; font-weight: 500;">ðŸ”— Clicked</span>' : ''}
                     ${!rec.hasReplied && !rec.opened && !rec.clicked ? '<span style="padding: 4px 8px; background: #fce8e6; color: #c5221f; border-radius: 4px; font-size: 11px; font-weight: 500;">No engagement</span>' : ''}
                   </div>
                 </div>
@@ -4521,7 +4513,7 @@ function showSheetsPreviewPopup(data) {
       <div style="padding: 24px; border-bottom: 1px solid #dadce0; position: sticky; top: 0; background: white; z-index: 10;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div>
-            <h2 style="margin: 0; font-size: 22px; color: #202124; font-weight: 600;">📊 Sheet Preview</h2>
+            <h2 style="margin: 0; font-size: 22px; color: #202124; font-weight: 600;">ðŸ“Š Sheet Preview</h2>
             <p style="margin: 8px 0 0 0; color: #5f6368; font-size: 14px;">${data.length} recipients loaded successfully</p>
           </div>
           <button id="close-sheets-preview" style="background: #dadce0; color: #202124; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">Close</button>
@@ -4530,7 +4522,7 @@ function showSheetsPreviewPopup(data) {
       
       <div style="padding: 24px;">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding: 16px; background: linear-gradient(135deg, #e8f5e9, #c8e6c9); border-radius: 12px; border: 2px solid #34a853;">
-          <span style="font-size: 32px;">✅</span>
+          <span style="font-size: 32px;">âœ…</span>
           <div style="flex: 1;">
             <div style="color: #137333; font-weight: 700; font-size: 18px;">Sheet Loaded Successfully!</div>
             <div style="font-size: 14px; color: #5f6368; margin-top: 4px;">Ready to send ${data.length} personalized emails</div>
@@ -4538,7 +4530,7 @@ function showSheetsPreviewPopup(data) {
         </div>
         
         <div style="background: #f8f9fa; padding: 16px; border-radius: 12px; margin-bottom: 20px;">
-          <div style="font-size: 15px; color: #202124; font-weight: 600; margin-bottom: 12px;">📊 Available Columns</div>
+          <div style="font-size: 15px; color: #202124; font-weight: 600; margin-bottom: 12px;">ðŸ“Š Available Columns</div>
           <div style="display: flex; flex-wrap: wrap; gap: 8px;">
             ${Object.keys(data[0] || {}).map(col => `
               <span style="background: white; padding: 6px 12px; border-radius: 6px; border: 1px solid #dadce0; font-size: 13px; color: #202124; font-weight: 500;">
@@ -4549,7 +4541,7 @@ function showSheetsPreviewPopup(data) {
         </div>
         
         <div style="background: #e3f2fd; padding: 16px; border-radius: 12px; border-left: 4px solid #1a73e8; margin-bottom: 20px;">
-          <div style="font-size: 14px; color: #1a73e8; font-weight: 600; margin-bottom: 8px;">💡 How to Use Variables</div>
+          <div style="font-size: 14px; color: #1a73e8; font-weight: 600; margin-bottom: 8px;">ðŸ’¡ How to Use Variables</div>
           <div style="font-size: 13px; color: #202124;">
             In your email subject and body, use variables like <code style="background: white; padding: 4px 8px; border-radius: 4px; font-weight: 600; color: #1a73e8;">{{name}}</code>, 
             <code style="background: white; padding: 4px 8px; border-radius: 4px; font-weight: 600; color: #1a73e8;">{{email1}}</code>, or any column name from above.
@@ -4559,7 +4551,7 @@ function showSheetsPreviewPopup(data) {
         </div>
         
         <div style="background: white; padding: 16px; border-radius: 12px; border: 1px solid #dadce0;">
-          <div style="font-size: 15px; color: #202124; font-weight: 600; margin-bottom: 12px;">📋 First 5 Rows Preview</div>
+          <div style="font-size: 15px; color: #202124; font-weight: 600; margin-bottom: 12px;">ðŸ“‹ First 5 Rows Preview</div>
           <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
             <table style="width: 100%; border-collapse: collapse;">
               <thead style="background: #f1f3f4; position: sticky; top: 0;">
@@ -4622,7 +4614,7 @@ function executeBulkAction(action, composeContainer) {
       toField.value = (toField.value ? toField.value + ', ' : '') + emails;
       toField.dispatchEvent(new Event('input', { bubbles: true }));
     }
-    alert(`✅ Added ${selected.length} recipients to "To" field`);
+    alert(`âœ… Added ${selected.length} recipients to "To" field`);
   } else if (action === 'cc') {
     // Add to CC field
     let ccField = composeContainer.querySelector('[name="cc"]');
@@ -4630,7 +4622,7 @@ function executeBulkAction(action, composeContainer) {
       ccField.value = (ccField.value ? ccField.value + ', ' : '') + emails;
       ccField.dispatchEvent(new Event('input', { bubbles: true }));
     }
-    alert(`✅ Added ${selected.length} recipients to CC field`);
+    alert(`âœ… Added ${selected.length} recipients to CC field`);
   } else if (action === 'bcc') {
     // Add to BCC field
     let bccField = composeContainer.querySelector('[name="bcc"]');
@@ -4638,13 +4630,13 @@ function executeBulkAction(action, composeContainer) {
       bccField.value = (bccField.value ? bccField.value + ', ' : '') + emails;
       bccField.dispatchEvent(new Event('input', { bubbles: true }));
     }
-    alert(`✅ Added ${selected.length} recipients to BCC field`);
+    alert(`âœ… Added ${selected.length} recipients to BCC field`);
   } else if (action === 'schedule') {
     // Schedule for selected recipients
-    alert(`📅 Scheduling for ${selected.length} recipients...\n\nThis feature will schedule separate sends for each recipient.`);
+    alert(`ðŸ“… Scheduling for ${selected.length} recipients...\n\nThis feature will schedule separate sends for each recipient.`);
   } else if (action === 'followup') {
     // Create follow-up
-    alert(`📨 Creating follow-up rules for ${selected.length} recipients...`);
+    alert(`ðŸ“¨ Creating follow-up rules for ${selected.length} recipients...`);
   }
   
   // Close modal
@@ -4723,16 +4715,16 @@ function showCalendarView(composeContainer) {
       <div style="padding: 24px; border-bottom: 1px solid #dadce0; position: sticky; top: 0; background: white; z-index: 10;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
           <div>
-            <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">📅 Schedule Email</h2>
+            <h2 style="margin: 0; font-size: 24px; color: #202124; font-weight: 400;">ðŸ“… Schedule Email</h2>
             <p style="margin: 8px 0 0 0; color: #5f6368; font-size: 14px;">Select date and time to schedule</p>
           </div>
           <button id="close-calendar" style="background: #dadce0; color: #202124; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-size: 14px;">Close</button>
         </div>
         
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <button id="prev-month" style="background: #1a73e8; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;">← Previous</button>
+          <button id="prev-month" style="background: #1a73e8; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;">â† Previous</button>
           <div style="font-size: 18px; font-weight: 600; color: #202124;">${monthNames[currentMonth]} ${currentYear}</div>
-          <button id="next-month" style="background: #1a73e8; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;">Next →</button>
+          <button id="next-month" style="background: #1a73e8; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;">Next â†’</button>
         </div>
       </div>
       
@@ -4817,7 +4809,7 @@ function showCalendarView(composeContainer) {
         }
       }, (response) => {
         if (response.success) {
-          alert(`✅ Email scheduled for ${new Date(scheduledDateTime).toLocaleString()}`);
+          alert(`âœ… Email scheduled for ${new Date(scheduledDateTime).toLocaleString()}`);
           modal.remove();
         } else {
           alert('Error scheduling email');
@@ -4858,3 +4850,4 @@ new MutationObserver(() => {
 }).observe(document, { subtree: true, childList: true });
 
 console.log('TaskForce Email Manager: Initialization complete');
+

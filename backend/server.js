@@ -15,17 +15,11 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Always allow Chrome extension origins
-    if (origin && /^chrome-extension:\/\//i.test(origin)) return callback(null, true);
-    // If no explicit allowlist, allow any origin (reflects request origin)
     if (!origin || allowedOrigins.length === 0) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('Not allowed by CORS'));
-  },
+  }
 }));
-
-// Preflight support
-app.options('*', cors());
 app.use(express.json());
 // Basic security headers
 app.use((req, res, next) => {
@@ -54,10 +48,22 @@ app.use((req, res, next) => {
 });
 
 // PostgreSQL Database Connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
+// Support both DATABASE_URL and individual connection parameters
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+      }
+    : {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '5432', 10),
+        database: process.env.DB_NAME || 'taskforce',
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || 'rayvical',
+        ssl: false
+      }
+);
 
 // Initialize database tables
 async function initDatabase() {
@@ -133,83 +139,9 @@ async function initDatabase() {
       END$$;
     `);
 
-    await pool.query(`
-      DO $$
-      BEGIN
-        BEGIN
-          ALTER TABLE scheduled_emails ADD COLUMN message_id VARCHAR(128);
-        EXCEPTION WHEN duplicate_column THEN
-          NULL;
-        END;
-      END$$;
-    `);
-
-    await pool.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS uq_scheduled_emails_message_id
-      ON scheduled_emails(message_id)
-      WHERE message_id IS NOT NULL
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS tracked_emails (
-        message_id VARCHAR(128) PRIMARY KEY,
-        opens INTEGER DEFAULT 0,
-        clicks INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS tracked_clicks (
-        id SERIAL PRIMARY KEY,
-        message_id VARCHAR(128) REFERENCES tracked_emails(message_id) ON DELETE CASCADE,
-        url TEXT,
-        clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS availability_pools (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        token VARCHAR(128) UNIQUE,
-        title TEXT,
-        duration_min INTEGER DEFAULT 30,
-        days_ahead INTEGER DEFAULT 14,
-        window_start VARCHAR(5) DEFAULT '09:00',
-        window_end VARCHAR(5) DEFAULT '17:00',
-        timezone VARCHAR(64) DEFAULT 'UTC',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS availability_slots (
-        id SERIAL PRIMARY KEY,
-        pool_id INTEGER REFERENCES availability_pools(id) ON DELETE CASCADE,
-        start_ts TIMESTAMP NOT NULL,
-        end_ts TIMESTAMP NOT NULL,
-        status VARCHAR(16) DEFAULT 'free',
-        booked_by_email VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS bookings (
-        id SERIAL PRIMARY KEY,
-        pool_id INTEGER REFERENCES availability_pools(id) ON DELETE CASCADE,
-        slot_id INTEGER REFERENCES availability_slots(id) ON DELETE CASCADE,
-        recipient_email VARCHAR(255) NOT NULL,
-        meet_link TEXT,
-        status VARCHAR(16) DEFAULT 'confirmed',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    console.log('âœ… Database initialized successfully');
+    console.log('✅ Database initialized successfully');
   } catch (error) {
-    console.error('âŒ Database initialization error:', error);
+    console.error('❌ Database initialization error:', error);
   }
 }
 
@@ -403,7 +335,7 @@ app.get('/api/auth/callback', async (req, res) => {
       <html>
         <head><title>Connected</title></head>
         <body style="font-family:Arial; padding:24px;">
-          <h2>âœ… Connected</h2>
+          <h2>✅ Connected</h2>
           <p>Your account <b>${email}</b> is now connected. You can close this tab and return to the extension.</p>
         </body>
       </html>
@@ -498,8 +430,57 @@ app.post('/api/emails/schedule', async (req, res) => {
       return res.json({ success: true, duplicate: true });
     }
     const emailId = result.rows[0].id;
-    console.log(`ðŸ“§ Email scheduled: ID ${emailId} for ${scheduledFor}`);
-    res.json({ success: true, emailId, idempotencyKey: key });
+    console.log(`📧 Email scheduled: ID ${emailId} for ${scheduledFor}`);
+    
+    // Optional: Create calendar event if requested
+    let calendarEvent = null;
+    if (req.body.createCalendarEvent) {
+      try {
+        const userResult = await pool.query('SELECT refresh_token FROM users WHERE id = $1', [userId]);
+        if (userResult.rows.length > 0) {
+          const accessToken = await getAccessToken(userResult.rows[0].refresh_token);
+          const startTime = new Date(date.date);
+          const endTime = new Date(startTime.getTime() + (req.body.calendarDurationMinutes || 30) * 60 * 1000);
+          
+          const eventData = {
+            summary: `Follow-up: ${rec.subject}`,
+            description: `Email follow-up with ${email.to}`,
+            start: {
+              dateTime: startTime.toISOString(),
+              timeZone: 'UTC'
+            },
+            end: {
+              dateTime: endTime.toISOString(),
+              timeZone: 'UTC'
+            },
+            attendees: [{ email: email.to }]
+          };
+          
+          const eventResponse = await axios.post(
+            'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+            eventData,
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          calendarEvent = {
+            id: eventResponse.data.id,
+            htmlLink: eventResponse.data.htmlLink,
+            summary: eventResponse.data.summary
+          };
+          console.log(`📅 Calendar event created for email ${emailId}`);
+        }
+      } catch (error) {
+        console.warn('Failed to create calendar event (non-blocking):', error.message);
+        // Don't fail the email scheduling if calendar creation fails
+      }
+    }
+    
+    res.json({ success: true, emailId, idempotencyKey: key, calendarEvent });
   } catch (error) {
     console.error('Schedule email error:', error);
     res.status(500).json({ error: error.message });
@@ -551,7 +532,7 @@ app.post('/api/emails/schedule-bulk', async (req, res) => {
       }
     }
 
-    console.log(`ðŸ“§ Bulk emails scheduled: ${emailIds.length} emails from ${startTime}`);
+    console.log(`📧 Bulk emails scheduled: ${emailIds.length} emails from ${startTime}`);
     res.json({ success: true, emailIds, count: emailIds.length });
   } catch (error) {
     console.error('Schedule bulk emails error:', error);
@@ -594,30 +575,6 @@ app.get('/metrics', async (req, res) => {
   }
 });
 
-// Manual cron trigger: process due scheduled emails now
-app.post('/api/cron/process-emails', async (req, res) => {
-  try {
-    const now = new Date();
-    const result = await pool.query(
-      `SELECT * FROM scheduled_emails 
-       WHERE status = 'scheduled' 
-       AND scheduled_for <= $1
-       ORDER BY scheduled_for ASC
-       LIMIT 200`,
-      [now]
-    );
-    let sent = 0, failed = 0;
-    for (const email of result.rows) {
-      try { await sendEmail(email); sent++; }
-      catch (_) { failed++; }
-      await new Promise(r => setTimeout(r, 300));
-    }
-    res.json({ success: true, processed: result.rows.length, sent, failed });
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
 // Cancel scheduled email
 app.delete('/api/emails/schedule/:emailId', async (req, res) => {
   try {
@@ -648,6 +605,334 @@ app.get('/api/stats/:userId', async (req, res) => {
     res.json({ success: true, stats: result.rows[0] || {} });
   } catch (error) {
     console.error('Get stats error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// CONTACTS API ENDPOINTS
+// ============================================
+
+// Fetch user's contacts
+app.get('/api/contacts/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Get user's refresh token
+    const userResult = await pool.query('SELECT refresh_token FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const accessToken = await getAccessToken(userResult.rows[0].refresh_token);
+    
+    // Fetch contacts from Google People API
+    const response = await axios.get(
+      'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,organizations,phoneNumbers&pageSize=2000',
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      }
+    );
+    
+    const contacts = (response.data.connections || []).map(contact => ({
+      id: contact.resourceName,
+      name: contact.names?.[0]?.displayName || 'Unknown',
+      email: contact.emailAddresses?.[0]?.value || '',
+      company: contact.organizations?.[0]?.name || '',
+      jobTitle: contact.organizations?.[0]?.title || '',
+      phone: contact.phoneNumbers?.[0]?.value || ''
+    })).filter(contact => contact.email);
+    
+    res.json({ success: true, contacts });
+  } catch (error) {
+    console.error('Fetch contacts error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create or update contact
+app.post('/api/contacts/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { name, email, company, jobTitle, phone } = req.body;
+    
+    if (!email || !validateEmailAddress(email)) {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+    
+    // Get user's refresh token
+    const userResult = await pool.query('SELECT refresh_token FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const accessToken = await getAccessToken(userResult.rows[0].refresh_token);
+    
+    // Create contact via People API
+    const contactData = {
+      names: name ? [{ givenName: name, displayName: name }] : [],
+      emailAddresses: [{ value: email }],
+      organizations: (company || jobTitle) ? [{ name: company || '', title: jobTitle || '' }] : [],
+      phoneNumbers: phone ? [{ value: phone, type: 'other' }] : []
+    };
+    
+    const response = await axios.post(
+      'https://people.googleapis.com/v1/people:createContact',
+      contactData,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    const contact = {
+      id: response.data.resourceName,
+      name: response.data.names?.[0]?.displayName || name || '',
+      email: response.data.emailAddresses?.[0]?.value || email,
+      company: response.data.organizations?.[0]?.name || company || '',
+      jobTitle: response.data.organizations?.[0]?.title || jobTitle || '',
+      phone: response.data.phoneNumbers?.[0]?.value || phone || ''
+    };
+    
+    res.json({ success: true, contact });
+  } catch (error) {
+    console.error('Create contact error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Search contacts
+app.get('/api/contacts/:userId/search', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { query } = req.query;
+    
+    if (!query || query.trim().length === 0) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+    
+    // Get user's refresh token
+    const userResult = await pool.query('SELECT refresh_token FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const accessToken = await getAccessToken(userResult.rows[0].refresh_token);
+    
+    // Fetch all contacts and filter client-side (People API doesn't have direct search)
+    const response = await axios.get(
+      'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,organizations,phoneNumbers&pageSize=2000',
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      }
+    );
+    
+    const searchTerm = query.toLowerCase();
+    const contacts = (response.data.connections || [])
+      .map(contact => ({
+        id: contact.resourceName,
+        name: contact.names?.[0]?.displayName || 'Unknown',
+        email: contact.emailAddresses?.[0]?.value || '',
+        company: contact.organizations?.[0]?.name || '',
+        jobTitle: contact.organizations?.[0]?.title || '',
+        phone: contact.phoneNumbers?.[0]?.value || ''
+      }))
+      .filter(contact => {
+        if (!contact.email) return false;
+        return (
+          contact.name.toLowerCase().includes(searchTerm) ||
+          contact.email.toLowerCase().includes(searchTerm) ||
+          contact.company.toLowerCase().includes(searchTerm)
+        );
+      });
+    
+    res.json({ success: true, contacts });
+  } catch (error) {
+    console.error('Search contacts error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// CALENDAR API ENDPOINTS
+// ============================================
+
+// Fetch user's calendar events
+app.get('/api/calendar/:userId/events', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { daysAhead = 7 } = req.query;
+    
+    // Get user's refresh token
+    const userResult = await pool.query('SELECT refresh_token FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const accessToken = await getAccessToken(userResult.rows[0].refresh_token);
+    
+    const timeMin = new Date().toISOString();
+    const timeMax = new Date(Date.now() + parseInt(daysAhead, 10) * 24 * 60 * 60 * 1000).toISOString();
+    
+    // Fetch events from Google Calendar API
+    const response = await axios.get(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=250`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      }
+    );
+    
+    const events = (response.data.items || []).map(event => ({
+      id: event.id,
+      summary: event.summary || 'No title',
+      description: event.description || '',
+      location: event.location || '',
+      start: event.start?.dateTime || event.start?.date,
+      end: event.end?.dateTime || event.end?.date,
+      attendees: (event.attendees || []).map(a => ({ email: a.email, responseStatus: a.responseStatus })),
+      htmlLink: event.htmlLink,
+      hangoutLink: event.hangoutLink
+    }));
+    
+    res.json({ success: true, events });
+  } catch (error) {
+    console.error('Fetch calendar events error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create calendar event
+app.post('/api/calendar/:userId/events', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { summary, description, location, start, end, attendees } = req.body;
+    
+    if (!summary || !start || !end) {
+      return res.status(400).json({ error: 'summary, start, and end are required' });
+    }
+    
+    // Get user's refresh token
+    const userResult = await pool.query('SELECT refresh_token FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const accessToken = await getAccessToken(userResult.rows[0].refresh_token);
+    
+    // Create event via Calendar API
+    const eventData = {
+      summary,
+      description: description || '',
+      location: location || '',
+      start: {
+        dateTime: start,
+        timeZone: 'UTC'
+      },
+      end: {
+        dateTime: end,
+        timeZone: 'UTC'
+      },
+      attendees: Array.isArray(attendees) ? attendees.map(email => ({ email })) : []
+    };
+    
+    const response = await axios.post(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+      eventData,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    const event = {
+      id: response.data.id,
+      summary: response.data.summary,
+      description: response.data.description,
+      location: response.data.location,
+      start: response.data.start?.dateTime || response.data.start?.date,
+      end: response.data.end?.dateTime || response.data.end?.date,
+      htmlLink: response.data.htmlLink,
+      hangoutLink: response.data.hangoutLink
+    };
+    
+    res.json({ success: true, event });
+  } catch (error) {
+    console.error('Create calendar event error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create calendar event for scheduled email (auto-integration)
+app.post('/api/calendar/:userId/events/from-email', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { emailId, summary, description, scheduledFor, durationMinutes = 30 } = req.body;
+    
+    if (!scheduledFor) {
+      return res.status(400).json({ error: 'scheduledFor is required' });
+    }
+    
+    // Get user's refresh token
+    const userResult = await pool.query('SELECT refresh_token FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const accessToken = await getAccessToken(userResult.rows[0].refresh_token);
+    
+    // Get email details if emailId provided
+    let emailTo = '';
+    let emailSubject = summary || 'Email Follow-up';
+    if (emailId) {
+      const emailResult = await pool.query('SELECT to_email, subject FROM scheduled_emails WHERE id = $1', [emailId]);
+      if (emailResult.rows.length > 0) {
+        emailTo = emailResult.rows[0].to_email;
+        emailSubject = emailResult.rows[0].subject || emailSubject;
+      }
+    }
+    
+    const startTime = new Date(scheduledFor);
+    const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+    
+    // Create event
+    const eventData = {
+      summary: summary || `Follow-up: ${emailSubject}`,
+      description: description || (emailTo ? `Email follow-up with ${emailTo}` : 'Email follow-up'),
+      start: {
+        dateTime: startTime.toISOString(),
+        timeZone: 'UTC'
+      },
+      end: {
+        dateTime: endTime.toISOString(),
+        timeZone: 'UTC'
+      },
+      attendees: emailTo ? [{ email: emailTo }] : []
+    };
+    
+    const response = await axios.post(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+      eventData,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    res.json({ success: true, event: response.data });
+  } catch (error) {
+    console.error('Create calendar event from email error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -765,7 +1050,7 @@ async function sendEmail(emailRecord) {
   while (attempt < maxAttempts) {
     try {
       attempt += 1;
-      console.log(`ðŸ“¤ Sending email ID ${emailRecord.id} to ${emailRecord.to_email} (attempt ${attempt}/${maxAttempts})`);
+      console.log(`📤 Sending email ID ${emailRecord.id} to ${emailRecord.to_email} (attempt ${attempt}/${maxAttempts})`);
 
       // Get user's refresh token
       const userResult = await pool.query(
@@ -794,18 +1079,10 @@ async function sendEmail(emailRecord) {
         }
       }
       
-      // Ensure message_id and inject tracking
-      let messageId = emailRecord.message_id;
-      if (!messageId) {
-        messageId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-        try { await pool.query('UPDATE scheduled_emails SET message_id = $1 WHERE id = $2', [messageId, emailRecord.id]); } catch (_) {}
-      }
-      const trackedBody = injectTracking(emailRecord.body, messageId);
-
       const raw = createRawEmail(
         emailRecord.to_email,
         emailRecord.subject,
-        trackedBody,
+        emailRecord.body,
         cc,
         bcc,
         attachments
@@ -835,7 +1112,7 @@ async function sendEmail(emailRecord) {
         [emailRecord.user_id]
       );
 
-      console.log(`âœ… Email sent successfully: ID ${emailRecord.id}`);
+      console.log(`✅ Email sent successfully: ID ${emailRecord.id}`);
       // Optional webhook
       if (process.env.WEBHOOK_URL) {
         try {
@@ -853,7 +1130,7 @@ async function sendEmail(emailRecord) {
       return true;
     } catch (error) {
       const transient = isTransient(error);
-      console.warn(`âŒ Send failed (attempt ${attempt}/${maxAttempts}) id=${emailRecord.id} transient=${transient}:`, error.message);
+      console.warn(`❌ Send failed (attempt ${attempt}/${maxAttempts}) id=${emailRecord.id} transient=${transient}:`, error.message);
       if (attempt >= maxAttempts || !transient) {
         // Final failure
         await pool.query(
@@ -887,79 +1164,6 @@ async function sendEmail(emailRecord) {
   }
 }
 
-// Build public base URL for tracking links
-function getPublicBaseUrl() {
-  const url = (process.env.BACKEND_PUBLIC_URL || '').toString().trim();
-  if (!url) return '';
-  return url.replace(/\/$/, '');
-}
-
-// Inject tracking pixel and wrap links through backend redirects
-function injectTracking(html, messageId) {
-  try {
-    html = appendWatermarkServer(html);
-    const base = getPublicBaseUrl();
-    if (!base) return html;
-    const replaced = html.replace(/href=\"(https?:\/\/[^\"]+)\"/gi, (m, url) => {
-      try {
-        const wrapped = `${base}/t/c?m=${encodeURIComponent(messageId)}&u=${encodeURIComponent(url)}`;
-        return `href="${wrapped}"`;
-      } catch (_) { return m; }
-    });
-    const pixel = `<img src="${base}/t/o?m=${encodeURIComponent(messageId)}" width="1" height="1" style="display:none;"/>`;
-    if (replaced.includes('/t/o?m=')) return replaced;
-    return replaced + `\n${pixel}`;
-  } catch (_) {
-    return html;
-  }
-}
-
-function appendWatermarkServer(html) {
-  try {
-    if (typeof html !== 'string') return html;
-    if (html.toLowerCase().includes('taskforce automated mailer')) return html;
-    const footer = `\n<div style="margin-top:16px;font-size:11px;line-height:1.3;color:#5f6368;">Sent using <strong>TaskForce Automated Mailer</strong></div>`;
-    return html + footer;
-  } catch (_) {
-    return html;
-  }
-}
-
-// Tracking endpoints
-app.get('/t/o', async (req, res) => {
-  try {
-    const m = (req.query.m || '').toString();
-    if (m) {
-      await pool.query('INSERT INTO tracked_emails(message_id, opens, clicks) VALUES ($1, 1, 0) ON CONFLICT (message_id) DO UPDATE SET opens = tracked_emails.opens + 1', [m]);
-    }
-  } catch (_) {}
-  // Return 1x1 transparent GIF
-  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
-  res.setHeader('Content-Type', 'image/gif');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.end(gif);
-});
-
-app.get('/t/c', async (req, res) => {
-  const m = (req.query.m || '').toString();
-  const u = (req.query.u || '').toString();
-  try {
-    if (m) await pool.query('INSERT INTO tracked_emails(message_id, opens, clicks) VALUES ($1, 0, 1) ON CONFLICT (message_id) DO UPDATE SET clicks = tracked_emails.clicks + 1', [m]);
-    if (m && u) await pool.query('INSERT INTO tracked_clicks(message_id, url) VALUES ($1, $2)', [m, u]);
-  } catch (_) {}
-  // Redirect to original URL
-  try {
-    const target = decodeURIComponent(u);
-    if (target && /^https?:\/\//i.test(target)) {
-      res.redirect(target);
-      return;
-    }
-  } catch (_) {}
-  res.status(400).send('Invalid URL');
-});
-
 // ============================================
 // CRON JOB - CHECK FOR DUE EMAILS
 // ============================================
@@ -967,7 +1171,7 @@ app.get('/t/c', async (req, res) => {
 // Run every minute
 cron.schedule('* * * * *', async () => {
   try {
-    console.log('â° Checking for due emails...');
+    console.log('⏰ Checking for due emails...');
     
     const now = new Date();
     
@@ -982,7 +1186,7 @@ cron.schedule('* * * * *', async () => {
     );
 
     if (result.rows.length > 0) {
-      console.log(`ðŸ“¬ Found ${result.rows.length} due email(s)`);
+      console.log(`📬 Found ${result.rows.length} due email(s)`);
       
       // Send each email
       for (const email of result.rows) {
@@ -992,7 +1196,7 @@ cron.schedule('* * * * *', async () => {
       }
     }
   } catch (error) {
-    console.error('âŒ Cron job error:', error);
+    console.error('❌ Cron job error:', error);
   }
 });
 
@@ -1001,89 +1205,9 @@ cron.schedule('0 3 * * *', async () => {
   try {
     const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
     const res1 = await pool.query('DELETE FROM scheduled_emails WHERE status IN (\'sent\', \'failed\') AND COALESCE(sent_at, created_at) < $1', [cutoff]);
-    console.log(`ðŸ§¹ Retention: deleted ${res1.rowCount} old records`);
+    console.log(`🧹 Retention: deleted ${res1.rowCount} old records`);
   } catch (e) {
     console.error('Retention job error:', e.message);
-  }
-});
-
-// ============================================
-// AVAILABILITY DASHBOARD
-// ============================================
-
-app.get('/api/availability/dashboard', async (req, res) => {
-  try {
-    const userId = parseInt((req.query.userId || '').toString(), 10);
-    if (!Number.isInteger(userId)) return res.status(400).json({ error: 'userId required' });
-    const pools = await pool.query(
-      `SELECT p.id, p.title, p.token,
-              (SELECT COUNT(*) FROM availability_slots s WHERE s.pool_id=p.id) AS total_slots,
-              (SELECT COUNT(*) FROM availability_slots s WHERE s.pool_id=p.id AND s.status='free') AS free_slots,
-              (SELECT COUNT(*) FROM availability_slots s WHERE s.pool_id=p.id AND s.status='booked') AS booked_slots
-         FROM availability_pools p WHERE p.user_id=$1 ORDER BY p.created_at DESC LIMIT 100`,
-      [userId]
-    );
-    const recentBookings = await pool.query(
-      `SELECT b.id, b.pool_id, b.recipient_email, b.meet_link, b.created_at, p.title
-         FROM bookings b JOIN availability_pools p ON p.id=b.pool_id
-        WHERE p.user_id=$1 ORDER BY b.created_at DESC LIMIT 100`,
-      [userId]
-    );
-    res.json({ success: true, pools: pools.rows, bookings: recentBookings.rows });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.get('/dashboard', async (req, res) => {
-  try {
-    const userId = parseInt((req.query.userId || '').toString(), 10);
-    if (!Number.isInteger(userId)) return res.status(400).send('userId required');
-    const base = getBackendPublicUrl(req);
-    const data = await (await fetch(`${base}/api/availability/dashboard?userId=${userId}`)).json().catch(() => ({ success:false }));
-    if (!data || !data.success) return res.status(500).send('Failed to load dashboard');
-    const poolsHtml = data.pools.map(p => `
-      <tr>
-        <td>${p.id}</td>
-        <td>${(p.title||'').replace(/</g,'&lt;')}</td>
-        <td><a href="${base}/book/${p.token}" target="_blank">Open link</a></td>
-        <td>${p.total_slots}</td>
-        <td>${p.free_slots}</td>
-        <td>${p.booked_slots}</td>
-      </tr>`).join('');
-    const rowsHtml = data.bookings.map(b => `
-      <tr>
-        <td>${b.id}</td>
-        <td>${b.pool_id}</td>
-        <td>${(b.title||'').replace(/</g,'&lt;')}</td>
-        <td>${(b.recipient_email||'').replace(/</g,'&lt;')}</td>
-        <td>${b.meet_link ? `<a href="${b.meet_link}" target="_blank">Meet</a>` : ''}</td>
-        <td>${new Date(b.created_at).toLocaleString()}</td>
-      </tr>`).join('');
-    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TaskForce Dashboard</title>
-    <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0f1113;color:#e5e7eb;margin:0;padding:24px}h1{font-size:18px;margin:0 0 16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #2a2f35;padding:8px;text-align:left}th{background:#14171a}a{color:#9cccff}</style></head><body>
-    <h1>TaskForce â€” Availability Dashboard</h1>
-    <h3>Your Pools</h3>
-
-
-    // Prefer external branded template with timezone if available
-    try {
-      const fs = require('fs');
-      const path = require('path');
-      const tplPath = path.join(__dirname, 'booking_template.html');
-      if (fs.existsSync(tplPath)) {
-        const tpl = fs.readFileSync(tplPath, 'utf8');
-        const titleExtra = pool.rows[0].title ? ' — ' + pool.rows[0].title : '';
-        html = tpl.replace(/{{TITLE_EXTRA}}/g, titleExtra).replace(/{{TOKEN}}/g, token);
-      }
-    } catch(_) {}
-    <table><thead><tr><th>ID</th><th>Title</th><th>Link</th><th>Total</th><th>Free</th><th>Booked</th></tr></thead><tbody>${poolsHtml}</tbody></table>
-    <h3 style="margin-top:16px">Recent Bookings</h3>
-    <table><thead><tr><th>ID</th><th>Pool</th><th>Title</th><th>Recipient</th><th>Meet</th><th>Created</th></tr></thead><tbody>${rowsHtml}</tbody></table>
-    </body></html>`;
-    res.send(html);
-  } catch (e) {
-    res.status(500).send('Error');
   }
 });
 
@@ -1094,148 +1218,16 @@ app.get('/dashboard', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log('ðŸš€ TaskForce Email Backend Server Started!');
-  console.log(`ðŸ“ Server running on port ${PORT}`);
-  console.log(`ðŸŒ Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`â° Cron jobs active - checking for due emails every minute`);
+  console.log('🚀 TaskForce Email Backend Server Started!');
+  console.log(`📍 Server running on port ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`⏰ Cron jobs active - checking for due emails every minute`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('ðŸ›‘ Shutting down gracefully...');
+  console.log('🛑 Shutting down gracefully...');
   await pool.end();
   process.exit(0);
 });
-
-// Create availability pool and generate slots
-app.post('/api/availability/create', async (req, res) => {
-  try {
-    const { userId, title, durationMin = 30, daysAhead = 14, windowStart = '09:00', windowEnd = '17:00', timezone = 'UTC' } = req.body || {};
-    if (!Number.isInteger(userId)) return res.status(400).json({ error: 'userId required' });
-    const token = crypto.randomBytes(12).toString('hex');
-    const inserted = await pool.query(`INSERT INTO availability_pools (user_id, token, title, duration_min, days_ahead, window_start, window_end, timezone) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, [userId, token, title||'Meeting', durationMin, daysAhead, windowStart, windowEnd, timezone]);
-    const poolId = inserted.rows[0].id;
-    // Build busy intervals from Google Calendar (primary) for the full window
-    let busy = [];
-    try {
-      const urow = await pool.query('SELECT refresh_token FROM users WHERE id=$1', [userId]);
-      if (urow.rows.length > 0) {
-        const accessToken = await getAccessTokenFromRefresh(urow.rows[0].refresh_token);
-        const startRange = new Date();
-        const endRange = new Date();
-        endRange.setDate(endRange.getDate() + parseInt(daysAhead, 10));
-        const fb = await axios.post('https://www.googleapis.com/calendar/v3/freeBusy', {
-          timeMin: startRange.toISOString(),
-          timeMax: endRange.toISOString(),
-          items: [{ id: 'primary' }]
-        }, { headers: { Authorization: `Bearer ${accessToken}` } });
-        const cal = fb.data && fb.data.calendars && (fb.data.calendars.primary || fb.data.calendars['primary']);
-        if (cal && Array.isArray(cal.busy)) {
-          busy = cal.busy.map(b => ({ s: new Date(b.start).getTime(), e: new Date(b.end).getTime() }));
-        }
-      }
-    } catch (err) {
-      console.warn('busy-time fetch failed, falling back:', err.response?.data || err.message);
-    }
-    const overlapsBusy = (s, e) => busy.some(b => s < b.e && e > b.s);
-
-    // Generate slots, skipping those that overlap busy
-    const now = new Date();
-    for (let d=0; d<daysAhead; d++) {
-      const day = new Date(now.getFullYear(), now.getMonth(), now.getDate()+d);
-      const [sh, sm] = windowStart.split(':').map(n=>parseInt(n,10));
-      const [eh, em] = windowEnd.split(':').map(n=>parseInt(n,10));
-      let cur = new Date(day.getFullYear(), day.getMonth(), day.getDate(), sh, sm, 0);
-      const endDay = new Date(day.getFullYear(), day.getMonth(), day.getDate(), eh, em, 0);
-      while (cur < endDay) {
-        const end = new Date(cur.getTime()+ (parseInt(durationMin,10)||30)*60*1000);
-        if (end> endDay) break;
-        if (end > now) {
-          const sMs = cur.getTime();
-          const eMs = end.getTime();
-          if (!overlapsBusy(sMs, eMs)) {
-            await pool.query('INSERT INTO availability_slots (pool_id, start_ts, end_ts) VALUES ($1,$2,$3)', [poolId, cur, end]);
-          }
-        }
-        cur = end;
-      }
-    }
-    const publicBase = getBackendPublicUrl(req);
-    const bookingUrl = `${publicBase}/book/${token}`;
-    res.json({ success:true, poolId, token, bookingUrl });
-  } catch (e) {
-    console.error('availability create error', e);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Booking page (minimal)
-app.get('/book/:token', async (req, res) => {
-  try {
-    const token = req.params.token;
-    const pool = await pool.query('SELECT * FROM availability_pools WHERE token=$1', [token]);
-    if (pool.rows.length===0) return res.status(404).send('Not found');
-    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Book a Meeting</title>
-    <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0f1113;color:#e5e7eb;margin:0;padding:0} .wrap{max-width:720px;margin:0 auto;padding:24px} .card{background:#14171a;border:1px solid #2a2f35;border-radius:12px;padding:16px} .slot{display:inline-block;margin:6px} .slot button{padding:8px 12px;border-radius:8px;border:1px solid #2a2f35;background:#1b1f23;color:#e5e7eb;cursor:pointer} .slot button:hover{filter:brightness(1.1)} input,button{font-size:14px}</style></head><body><div class="wrap"><h2>Book a meeting${pool.rows[0].title? ' â€“ '+pool.rows[0].title:''}</h2><div class="card"><div id="slots">Loading...</div><div style="margin-top:12px"><input id="email" type="email" placeholder="Your email" style="padding:8px;border-radius:8px;border:1px solid #2a2f35;background:#0f1113;color:#e5e7eb"> <button id="confirm" disabled>Confirm</button></div><div id="msg" style="margin-top:10px;color:#9ca3af"></div></div></div><script>(function(){const token='${token}';let selected=null;function fmt(s){return new Date(s).toLocaleString();}fetch('/api/book/slots?token='+token).then(r=>r.json()).then(j=>{if(!j.success){document.getElementById('slots').textContent='Failed to load slots';return;}const box=document.getElementById('slots');box.innerHTML=j.slots.map(s=>\`<span class=slot><button data-id="${s.id}">${fmt(s.start)} (${s.duration}m)</button></span>\`)\.join('');box.querySelectorAll('button').forEach(b=>b.onclick=()=>{selected=b.getAttribute('data-id');document.getElementById('confirm').disabled=false;});});document.getElementById('confirm').onclick=function(){const email=document.getElementById('email').value;if(!email||!selected){alert('Pick a slot and enter email');return;}fetch('/api/book/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,slotId:selected,email})}).then(r=>r.json()).then(j=>{if(!j.success){document.getElementById('msg').textContent=j.error||'Failed';return;}document.getElementById('msg').textContent='Booked! Meet link: '+(j.meetLink||'');});};})();</script></body></html>`;
-    res.send(html);
-  } catch (e) { res.status(500).send('Error'); }
-});
-
-app.get('/api/book/slots', async (req,res) => {
-  try {
-    const token = (req.query.token||'').toString();
-    const p = await pool.query('SELECT id,duration_min FROM availability_pools WHERE token=$1', [token]);
-    if (p.rows.length===0) return res.json({ success:false, error:'Invalid' });
-    const pid = p.rows[0].id; const dur = p.rows[0].duration_min;
-    const rows = await pool.query('SELECT id, start_ts, end_ts, status FROM availability_slots WHERE pool_id=$1 AND status=$2 ORDER BY start_ts ASC LIMIT 200', [pid,'free']);
-    res.json({ success:true, slots: rows.rows.map(r=>({ id: r.id, start: r.start_ts, end: r.end_ts, duration: dur })) });
-  } catch (e) { res.json({ success:false, error:e.message }); }
-});
-
-app.post('/api/book/confirm', async (req,res) => {
-  const client = await pool.connect();
-  try {
-    const { token, slotId, email } = req.body || {};
-    if (!token || !slotId || !validateEmailAddress(email)) return res.json({ success:false, error:'Invalid' });
-    await client.query('BEGIN');
-    const p = await client.query('SELECT id, user_id, title, duration_min FROM availability_pools WHERE token=$1 FOR UPDATE', [token]);
-    if (p.rows.length===0) throw new Error('Invalid token');
-    const poolId = p.rows[0].id;
-    const s = await client.query("UPDATE availability_slots SET status='booked', booked_by_email=$1 WHERE id=$2 AND pool_id=$3 AND status='free' RETURNING start_ts, end_ts", [email, slotId, poolId]);
-    if (s.rows.length===0) { await client.query('ROLLBACK'); return res.json({ success:false, error:'Slot already booked' }); }
-    // Create Meet event for host (user)
-    const user = await client.query('SELECT refresh_token,email FROM users WHERE id=$1', [p.rows[0].user_id]);
-    const accessToken = await getAccessTokenFromRefresh(user.rows[0].refresh_token);
-    const start = new Date(s.rows[0].start_ts).toISOString();
-    const end = new Date(s.rows[0].end_ts).toISOString();
-    const event = {
-      summary: p.rows[0].title || 'Meeting',
-      start: { dateTime: start },
-      end: { dateTime: end },
-      attendees: [{ email }],
-      conferenceData: { createRequest: { requestId: `${Date.now()}_${Math.random().toString(36).slice(2,8)}`, conferenceSolutionKey: { type: 'hangoutsMeet' } } }
-    };
-    const ev = await axios.post('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', event, { headers: { Authorization: `Bearer ${accessToken}` } });
-    const conf = ev.data?.conferenceData?.entryPoints?.find(e=>e.entryPointType==='video')?.uri || ev.data?.hangoutLink || '';
-    await client.query('INSERT INTO bookings (pool_id, slot_id, recipient_email, meet_link) VALUES ($1,$2,$3,$4)', [poolId, slotId, email, conf]);
-    await client.query('COMMIT');
-    res.json({ success:true, meetLink: conf, start, end });
-  } catch (e) {
-    try { await client.query('ROLLBACK'); } catch(_){}
-    console.error('booking error', e.response?.data || e.message);
-    res.json({ success:false, error: e.message });
-  } finally { client.release(); }
-});
-
-async function getAccessTokenFromRefresh(encRefresh) {
-  const refreshToken = decrypt(encRefresh);
-  const resp = await axios.post('https://oauth2.googleapis.com/token', {
-    client_id: process.env.GOOGLE_CLIENT_ID,
-    client_secret: process.env.GOOGLE_CLIENT_SECRET,
-    refresh_token: refreshToken,
-    grant_type: 'refresh_token'
-  });
-  return resp.data.access_token;
-}
-
 
